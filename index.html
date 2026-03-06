@@ -1,0 +1,167 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Funding Management System - South Africa (Updated 2026)</title>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 20px; background: #f9f9f9; }
+        h1 { color: #2c3e50; }
+        #search { width: 100%; padding: 12px; margin-bottom: 15px; font-size: 16px; border: 1px solid #ccc; border-radius: 4px; }
+        table { width: 100%; border-collapse: collapse; margin-bottom: 20px; background: white; box-shadow: 0 2px 8px rgba(0,0,0,0.1); }
+        th, td { border: 1px solid #ddd; padding: 12px; text-align: left; }
+        th { background-color: #34495e; color: white; }
+        tr:nth-child(even) { background-color: #f2f2f2; }
+        button { padding: 6px 12px; margin: 2px; cursor: pointer; border: none; border-radius: 4px; }
+        .edit-btn { background: #3498db; color: white; }
+        .delete-btn { background: #e74c3c; color: white; }
+        .email-btn { background: #27ae60; color: white; }
+        #addForm input { padding: 8px; margin: 5px; width: 220px; border: 1px solid #ccc; border-radius: 4px; }
+        #addForm button { background: #2ecc71; color: white; padding: 10px 20px; }
+    </style>
+</head>
+<body>
+    <h1>Funding Management System (South Africa Focus - Expanded List)</h1>
+    <p>Search by keywords like "orphanages", "disabled elderly", "schools churches", or "hospice". Use "Email" to draft inquiries. Data saved in your browser.</p>
+
+    <input type="text" id="search" placeholder="Search by name, funding target, or contacts...">
+
+    <table id="fundersTable">
+        <thead>
+            <tr>
+                <th>Name</th>
+                <th>Funding Target</th>
+                <th>Website</th>
+                <th>Contacts</th>
+                <th>Actions</th>
+            </tr>
+        </thead>
+        <tbody></tbody>
+    </table>
+
+    <h2>Add / Manage Funder</h2>
+    <div id="addForm">
+        <input type="text" id="newName" placeholder="Name (required)">
+        <input type="text" id="newTarget" placeholder="Funding Target (e.g., schools, orphanages)">
+        <input type="text" id="newWebsite" placeholder="Website[](https://...)">
+        <input type="text" id="newContacts" placeholder="Contacts (email/phone)">
+        <button onclick="addFunder()">Add New Funder</button>
+    </div>
+
+    <script>
+        // Expanded initial data with more South African funders (2026-relevant)
+        const initialData = [
+            { name: "Kagiso Trust", target: "Education (schools), early childhood, socio-economic development, vulnerable communities including orphans and disabled", website: "https://kagiso.co.za/", contacts: "info@kagiso.co.za" },
+            { name: "Trevor Noah Foundation", target: "Youth education, digital literacy, disadvantaged schools, vulnerable children", website: "https://trevornoahfoundation.org/", contacts: "info@trevornoahfoundation.org" },
+            { name: "Spur Foundation (Spur Corporation - JSE listed)", target: "Vulnerable families, nutrition for children, early childhood education, orphan support via NGOs", website: "https://www.spurfoundation.co.za/", contacts: "spurfoundation@spur.co.za" },
+            { name: "JSE CSI", target: "Health, education (schools via Adopt-a-School), social development, vulnerable groups including elderly/disabled", website: "https://group.jse.co.za/", contacts: "ir@jse.co.za; +27 11 520 7000" },
+            { name: "Shoprite Holdings (JSE listed)", target: "Food security, hunger relief, youth employment, education, support for orphans/elderly via #ActForChange", website: "https://www.shopriteholdings.co.za/", contacts: "Via website contact form" },
+            { name: "Nazareth Care Africa / Nazareth House South Africa", target: "Indigent elderly (old age homes), orphaned children, hospice care including children and terminally ill", website: "https://nazarethcare.co.za/", contacts: "rosie.whittaker@nazarethcare.co.za; +27 79 114 6601" },
+            { name: "Little Eden Society", target: "Children and adults with profound intellectual disabilities (homes for disabled)", website: "https://littleeden.org.za/", contacts: "info@littleeden.org.za; +27 11 609 7246" },
+            { name: "Hollywood Foundation", target: "Elderly citizens, vulnerable members, non-profits supporting old age homes, disabled, education, community care", website: "https://hollywoodfoundation.co.za/", contacts: "Via website inquiry form" },
+            { name: "Tshikululu Social Investments", target: "Education, healthcare, livelihoods, youth, disabilities, community programs", website: "https://www.tshikululu.org.za/", contacts: "info@tshikululu.org.za" },
+            { name: "FirstRand Foundation", target: "Children with disabilities and learning difficulties, education, vulnerable communities", website: "https://www.firstrand.co.za/ (search Foundation)", contacts: "Via FirstRand corporate site form" },
+            { name: "Gauteng Partnership Fund (GPF) CSI", target: "Education, youth empowerment, disability support, women's empowerment, elderly via faith-based/welfare programs", website: "https://www.gpf.co.za/", contacts: "Via website proposals/contact" },
+            { name: "Abbeyfield South Africa", target: "Elderly housing and support (old age homes, community care for seniors)", website: "https://www.charitysa.co.za/abbeyfield-south-africa.html (via CharitySA)", contacts: "Via CharitySA directory or site inquiry" },
+            { name: "MaAfrika Tikkun", target: "Vulnerable children, orphans, education, community development, health for disadvantaged", website: "https://www.tikkun.org.za/", contacts: "info@tikkun.org.za" },
+            { name: "Oasis Association", target: "Adults with intellectual disabilities (training, employment, community support)", website: "https://www.oasis.org.za/", contacts: "info@oasis.org.za" }
+        ];
+
+        let funders = JSON.parse(localStorage.getItem('funders')) || initialData;
+
+        function renderTable(data) {
+            const tbody = document.querySelector('#fundersTable tbody');
+            tbody.innerHTML = '';
+            data.forEach((funder, index) => {
+                const row = document.createElement('tr');
+                row.innerHTML = `
+                    <td>${funder.name}</td>
+                    <td>${funder.target}</td>
+                    <td>${funder.website ? `<a href="${funder.website}" target="_blank">${funder.website}</a>` : 'N/A'}</td>
+                    <td>${funder.contacts || 'N/A'}</td>
+                    <td>
+                        <button class="edit-btn" onclick="editFunder(${index})">Edit</button>
+                        <button class="delete-btn" onclick="deleteFunder(${index})">Delete</button>
+                        <button class="email-btn" onclick="sendEmail('${funder.name.replace(/'/g, "\\'")}', '${funder.website.replace(/'/g, "\\'")}', '${(funder.contacts || '').replace(/'/g, "\\'")}')">Email</button>
+                    </td>
+                `;
+                tbody.appendChild(row);
+            });
+        }
+
+        function saveData() {
+            localStorage.setItem('funders', JSON.stringify(funders));
+            renderTable(funders);
+        }
+
+        function addFunder() {
+            const name = document.getElementById('newName').value.trim();
+            const target = document.getElementById('newTarget').value.trim();
+            const website = document.getElementById('newWebsite').value.trim();
+            const contacts = document.getElementById('newContacts').value.trim();
+            if (name && target) {
+                funders.push({ name, target, website, contacts });
+                saveData();
+                clearInputs();
+            } else {
+                alert('Name and Funding Target are required.');
+            }
+        }
+
+        function editFunder(index) {
+            const f = funders[index];
+            const newName = prompt('Edit Name:', f.name);
+            const newTarget = prompt('Edit Funding Target:', f.target);
+            const newWebsite = prompt('Edit Website:', f.website);
+            const newContacts = prompt('Edit Contacts:', f.contacts);
+            if (newName !== null) f.name = newName.trim();
+            if (newTarget !== null) f.target = newTarget.trim();
+            if (newWebsite !== null) f.website = newWebsite.trim();
+            if (newContacts !== null) f.contacts = newContacts.trim();
+            saveData();
+        }
+
+        function deleteFunder(index) {
+            if (confirm('Delete this funder?')) {
+                funders.splice(index, 1);
+                saveData();
+            }
+        }
+
+        function clearInputs() {
+            ['newName', 'newTarget', 'newWebsite', 'newContacts'].forEach(id => document.getElementById(id).value = '');
+        }
+
+        function sendEmail(name, website, contacts) {
+            const emailAddr = contacts.includes('@') ? contacts.split(/[,; ]+/).find(c => c.includes('@')) || '' : '';
+            const subject = encodeURIComponent(`Funding / Partnership Inquiry: Support for Vulnerable Groups in Gauteng`);
+            const body = encodeURIComponent(
+                `Dear ${name} Team,\n\n` +
+                `I am reaching out from Pretoria/Gauteng regarding potential funding, grants, or CSI support.\n` +
+                `Our work focuses on [e.g., schools, orphanages, elderly care, homes for the disabled, hospices, churches... – please specify your cause].\n\n` +
+                `Relevant details:\n` +
+                `Website: ${website || 'N/A'}\n` +
+                `Contacts: ${contacts || 'N/A'}\n\n` +
+                `Could you please share information on your current priorities, application process, or how we might align?\n\n` +
+                `Thank you for your time and consideration.\n` +
+                `Best regards,\nGoodness\n[Your phone/email/organisation]`
+            );
+            window.location.href = `mailto:${emailAddr}?subject=${subject}&body=${body}`;
+        }
+
+        // Sophisticated real-time search: multi-term AND matching
+        document.getElementById('search').addEventListener('input', (e) => {
+            const query = e.target.value.toLowerCase().trim();
+            const terms = query.split(/\s+/).filter(t => t);
+            const filtered = funders.filter(f => {
+                const text = `${f.name} ${f.target} ${f.contacts || ''}`.toLowerCase();
+                return terms.every(term => text.includes(term));
+            });
+            renderTable(filtered);
+        });
+
+        // Initial render
+        renderTable(funders);
+    </script>
+</body>
+</html>
