@@ -1086,6 +1086,7 @@
                 ...synonyms,
                 ...intentTerms
             ].join(' ');
+            const navId = buildNavboostRecordKey(record);
             record.meta = {
                 nameText: normalizeText(record.name),
                 countryText: normalizeText(record.country),
@@ -1095,8 +1096,8 @@
                 intentText: normalizeText(intentTerms.join(' ')),
                 searchText: normalizeText(searchSource),
                 tokens: tokenize(searchSource),
-                navId: buildNavboostRecordKey(record),
-                searchId: record.id || buildNavboostRecordKey(record)
+                navId,
+                searchId: record.id || navId
             };
             record.meta.tokenSet = new Set(record.meta.tokens);
             return record;
@@ -1107,7 +1108,9 @@
             return rest;
         };
 
-        const getRecordSearchId = (record) => record.id || record.meta?.searchId || buildNavboostRecordKey(record);
+        const getRecordSearchId = (record) => (
+            record.id || record.meta?.searchId || record.meta?.navId || buildNavboostRecordKey(record)
+        );
 
         const buildIndexSignature = (dataset) => JSON.stringify(
             dataset
@@ -1793,10 +1796,10 @@
             return true;
         };
 
-        const matchesQueryTerms = (record, terms, indexPayload = null) => {
+        const matchesQueryTerms = (record, terms, indexPayload = null, docId = null) => {
             if (indexPayload) {
-                const docId = getRecordSearchId(record);
-                return terms.every(term => indexPayload.index.get(term)?.postings.has(docId));
+                const resolvedId = docId || getRecordSearchId(record);
+                return terms.every(term => indexPayload.index.get(term)?.postings.has(resolvedId));
             }
             return terms.every(term => record.meta.tokenSet.has(term));
         };
@@ -1815,7 +1818,7 @@
                 if (indexPayload && candidates) {
                     const docId = getRecordSearchId(record);
                     if (!candidates.has(docId)) return false;
-                    return matchesQueryTerms(record, terms, indexPayload);
+                    return matchesQueryTerms(record, terms, indexPayload, docId);
                 }
                 return matchesQueryTerms(record, terms);
             });
@@ -1825,7 +1828,7 @@
                         record,
                         score: indexPayload
                             ? scoreRecord(record, queryContext, indexPayload, queryVector)
-                            : (matchesQueryTerms(record, terms) ? 1 : 0)
+                            : 1
                     }))
                     .sort((a, b) => b.score - a.score)
                     .map(entry => entry.record)
