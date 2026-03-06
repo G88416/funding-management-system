@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Funding Management System - Global Funders (Updated 2026)</title>
+    <title>Funding Management System - Global Intelligence (Updated 2026)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #f9f9f9; }
         h1 { color: #2c3e50; }
@@ -45,20 +45,20 @@
 </head>
 <body>
     <h1>Funding Management System (Multi-Country Intelligence Search)</h1>
-    <p id="engineIntro">Run deep scans for funders, foundations, corporates, and contract opportunities across South Africa, Russia, China, Brazil, and India. Use the advanced search console to target sectors, services, and keywords. Data syncs to Firebase when configured.</p>
+    <p id="engineIntro">Run deep scans across South Africa, Russia, China, Brazil, and India. Use the advanced search console to target sectors and keywords. Data syncs to Firebase when configured.</p>
     <div id="status" class="status-warning">Firebase status: Not connected yet.</div>
 
     <section class="engine-panel">
         <div class="engine-header">
-            <h2>Deep Funding & Contract Intelligence Engine</h2>
-            <p>State-of-the-art matching blends curated intelligence, deep-scan generated leads, and Navboost-style satisfaction signals. Switch modes to surface funders or service/contract seekers.</p>
+            <h2>Deep Intelligence Engine</h2>
+            <p>State-of-the-art matching blends curated intelligence, deep-scan generated leads, and Navboost-style satisfaction signals. Switch modes to surface the right opportunities.</p>
         </div>
         <div class="engine-controls">
             <div class="control-group">
                 <label for="searchMode">Search Engine Mode</label>
                 <select id="searchMode">
                     <option value="funders">Funding Intelligence</option>
-                    <option value="contracts">Contract & Service Leads</option>
+                    <option value="contracts">Opportunity Leads</option>
                 </select>
             </div>
             <div class="control-group">
@@ -81,75 +81,8 @@
         <div id="engineMetrics" class="engine-metrics"></div>
     </section>
 
-    <section class="engine-panel">
-        <div class="engine-header">
-            <h2>Search Engine Options (2026)</h2>
-            <p>Compare search stack deployments to power the funding intelligence engine.</p>
-        </div>
-        <table>
-            <thead>
-                <tr>
-                    <th>Option</th>
-                    <th>Type</th>
-                    <th>Best For</th>
-                    <th>Setup Difficulty</th>
-                    <th>Cost (2026)</th>
-                    <th>Vector / AI Search?</th>
-                    <th>Example Use Case (your context)</th>
-                </tr>
-            </thead>
-            <tbody>
-                <tr>
-                    <td>Meilisearch</td>
-                    <td>Open-source</td>
-                    <td>Fast typo-tolerant search</td>
-                    <td>Very easy</td>
-                    <td>Free self-host / cheap cloud</td>
-                    <td>Yes (hybrid)</td>
-                    <td>Search your list of funders by name/target/keywords</td>
-                </tr>
-                <tr>
-                    <td>Typesense</td>
-                    <td>Open-source</td>
-                    <td>Algolia-like speed &amp; simplicity</td>
-                    <td>Easy</td>
-                    <td>Free self-host / affordable cloud</td>
-                    <td>Yes</td>
-                    <td>Instant search in funding database</td>
-                </tr>
-                <tr>
-                    <td>OpenSearch</td>
-                    <td>Open-source</td>
-                    <td>Elasticsearch fork (very powerful)</td>
-                    <td>Medium</td>
-                    <td>Free (self-host) or AWS managed</td>
-                    <td>Yes (plugins)</td>
-                    <td>Larger document collection</td>
-                </tr>
-                <tr>
-                    <td>ZincSearch / Quickwit</td>
-                    <td>Open-source</td>
-                    <td>Lightweight alternatives</td>
-                    <td>Easy–medium</td>
-                    <td>Free</td>
-                    <td>Some</td>
-                    <td>Logs or small–medium docs</td>
-                </tr>
-                <tr>
-                    <td>SQLite + FTS5</td>
-                    <td>Built-in DB</td>
-                    <td>Tiny / embedded search</td>
-                    <td>Very easy</td>
-                    <td>Free</td>
-                    <td>No (but fast)</td>
-                    <td>Offline search in your HTML app</td>
-                </tr>
-            </tbody>
-        </table>
-    </section>
-
     <div class="search-row">
-        <input type="text" id="search" placeholder="Describe your funding, logistics, or service contract needs...">
+        <input type="text" id="search" placeholder="Describe your search focus or opportunity needs...">
     </div>
 
     <h2 id="resultsTitle">Search Results</h2>
@@ -160,8 +93,8 @@
                 <th>Name</th>
                 <th>Country</th>
                 <th>Category</th>
-                <th id="tableTypeHeader">Funder Type</th>
-                <th id="tableTargetHeader">Funding Target</th>
+                <th id="tableTypeHeader">Record Type</th>
+                <th id="tableTargetHeader">Target</th>
                 <th>Website</th>
                 <th>Contacts</th>
                 <th>Actions</th>
@@ -171,16 +104,16 @@
     </table>
 
     <h2 id="formTitle">Add / Manage Record</h2>
-    <p id="formHelp" class="form-help">Add new funders or contract leads to the active engine.</p>
+    <p id="formHelp" class="form-help">Add new records to the active engine.</p>
     <div id="addForm">
         <input type="text" id="newName" placeholder="Name (required)">
         <select id="newCountry"></select>
         <select id="newCategory"></select>
         <select id="newType"></select>
-        <input type="text" id="newTarget" placeholder="Funding Target (e.g., schools, orphanages)">
+        <input type="text" id="newTarget" placeholder="Target (e.g., schools, orphanages)">
         <input type="text" id="newWebsite" placeholder="Website (https://...)">
         <input type="text" id="newContacts" placeholder="Contacts (email/phone)">
-        <button id="addFunderButton">Add New Funder</button>
+        <button id="addFunderButton">Add New Record</button>
     </div>
 
     <script>
@@ -695,11 +628,11 @@
         const MODE_CONFIG = {
             funders: {
                 label: 'Funding Intelligence',
-                resultsLabel: 'Funding Results',
-                typeLabel: 'Funder Type',
-                targetLabel: 'Funding Target',
-                targetPlaceholder: 'Funding Target (e.g., schools, orphanages)',
-                formHelp: 'Add new funders to the active funding intelligence engine.',
+                resultsLabel: 'Search Results',
+                typeLabel: 'Record Type',
+                targetLabel: 'Target',
+                targetPlaceholder: 'Target (e.g., schools, orphanages)',
+                formHelp: 'Add new records to the active engine.',
                 categoryOptions: CATEGORY_OPTIONS,
                 typeOptions: TYPE_OPTIONS,
                 intentTerms: FUNDING_INTENT_TERMS,
@@ -708,18 +641,18 @@
                 emailIntro: 'I am reaching out regarding potential funding, grants, or CSI support.'
             },
             contracts: {
-                label: 'Contract & Service Leads',
-                resultsLabel: 'Contract & Service Results',
+                label: 'Opportunity Leads',
+                resultsLabel: 'Search Results',
                 typeLabel: 'Opportunity Type',
-                targetLabel: 'Service/Contract Need',
-                targetPlaceholder: 'Contract Need (e.g., logistics, fleet, IT services)',
-                formHelp: 'Add new contract seekers or service leads to the active pipeline.',
+                targetLabel: 'Need',
+                targetPlaceholder: 'Need (e.g., logistics, fleet, IT support)',
+                formHelp: 'Add new records to the active engine.',
                 categoryOptions: CONTRACT_CATEGORY_OPTIONS,
                 typeOptions: CONTRACT_TYPE_OPTIONS,
                 intentTerms: CONTRACT_INTENT_TERMS,
                 weights: { name: 5, category: 5, country: 4, type: 3, target: 4, search: 2, intent: 4, phrase: 5 },
-                emailSubject: 'Contract Opportunity Response',
-                emailIntro: 'I am responding to the service/contract opportunity and would like to align capabilities.'
+                emailSubject: 'Opportunity Response',
+                emailIntro: 'I am responding to this opportunity and would like to align capabilities.'
             }
         };
 
@@ -729,17 +662,16 @@
             const countryList = formatCountryList(COUNTRY_OPTIONS);
             if (engineIntroEl) {
                 engineIntroEl.textContent =
-                    `Run deep scans for ${FUNDING_TOTAL_TARGET} funders (including ${FUNDING_COUNTRY_TARGETS[DEFAULT_COUNTRY]} in ${DEFAULT_COUNTRY}) ` +
-                    `and ${CONTRACT_TOTAL_TARGET} contract opportunities (including ${CONTRACT_COUNTRY_TARGETS[DEFAULT_COUNTRY]} in ${DEFAULT_COUNTRY}) ` +
-                    `across ${countryList}. Use the advanced search console to target sectors, services, and keywords. Data syncs to Firebase when configured.`;
+                    `Run deep scans across ${countryList}. ` +
+                    'Use the advanced search console to target sectors and keywords. Data syncs to Firebase when configured.';
             }
             const funderOption = searchModeSelect.querySelector('option[value="funders"]');
             if (funderOption) {
-                funderOption.textContent = `${MODE_CONFIG.funders.label} (${FUNDING_TOTAL_TARGET} funders)`;
+                funderOption.textContent = `${MODE_CONFIG.funders.label} (${FUNDING_TOTAL_TARGET})`;
             }
             const contractOption = searchModeSelect.querySelector('option[value="contracts"]');
             if (contractOption) {
-                contractOption.textContent = `${MODE_CONFIG.contracts.label} (${CONTRACT_TOTAL_TARGET} opportunities)`;
+                contractOption.textContent = `${MODE_CONFIG.contracts.label} (${CONTRACT_TOTAL_TARGET})`;
             }
         };
 
@@ -1503,7 +1435,7 @@
             formHelpEl.textContent = config.formHelp;
             resultsTitleEl.textContent = config.resultsLabel;
             targetInputEl.placeholder = config.targetPlaceholder;
-            addRecordButton.textContent = activeMode === 'funders' ? 'Add New Funder' : 'Add New Lead';
+            addRecordButton.textContent = 'Add New Record';
             populateSelect('newCategory', config.categoryOptions, config.categoryOptions[0]);
             populateSelect('newType', config.typeOptions, config.typeOptions[0]);
             populateFilterSelect(categoryFilterEl, config.categoryOptions, filterState.category);
