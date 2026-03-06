@@ -202,7 +202,7 @@
         const NAVBOOST_STORAGE_KEY = 'navboostSignals';
         const NAVBOOST_PENDING_KEY = 'navboostPendingClick';
         const NAVBOOST_WINDOW_MONTHS = 13;
-        const NAVBOOST_WINDOW_DAYS = Math.round(NAVBOOST_WINDOW_MONTHS * (365 / 12));
+        const NAVBOOST_WINDOW_DAYS = Math.round(NAVBOOST_WINDOW_MONTHS * (365.25 / 12));
         const NAVBOOST_WINDOW_MS = NAVBOOST_WINDOW_DAYS * 24 * 60 * 60 * 1000;
         const NAVBOOST_GOOD_DWELL_MS = 30000;
         const NAVBOOST_BAD_DWELL_MS = 8000;
@@ -980,7 +980,7 @@
                     <strong>${scanLabel}</strong>
                 </div>
                 <div class="metric-card">
-                    <span>Navboost signals (${NAVBOOST_WINDOW_MONTHS}-month)</span>
+                    <span>Navboost signals (${NAVBOOST_WINDOW_MONTHS}-month${NAVBOOST_WINDOW_MONTHS === 1 ? '' : 's'})</span>
                     <strong title="${escapeHtml(navboostTitle)}">${escapeHtml(navboostLabel)}</strong>
                 </div>
             `;
@@ -1158,12 +1158,12 @@
             const link = event.target.closest('a');
             if (link && link.href) {
                 const row = link.closest('tr');
-                const index = Number(row?.dataset.index);
-                if (Number.isNaN(index)) {
+                const datasetIndex = Number(row?.dataset.index);
+                if (Number.isNaN(datasetIndex)) {
                     return;
                 }
                 const dataset = getActiveDataset();
-                const record = dataset[index];
+                const record = dataset[datasetIndex];
                 if (record) {
                     registerNavboostClick(record, 'website');
                 }
