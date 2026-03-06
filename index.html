@@ -416,8 +416,16 @@
         const STEM_CACHE = new Map();
         const STEM_CACHE_LIMIT = 2000;
         const enforceStemCacheLimit = () => {
-            while (STEM_CACHE.size > STEM_CACHE_LIMIT) {
-                const oldestKey = STEM_CACHE.keys().next().value;
+            const overflow = STEM_CACHE.size - STEM_CACHE_LIMIT;
+            if (overflow <= 0) {
+                return;
+            }
+            const keys = STEM_CACHE.keys();
+            for (let i = 0; i < overflow; i += 1) {
+                const oldestKey = keys.next().value;
+                if (!oldestKey) {
+                    break;
+                }
                 STEM_CACHE.delete(oldestKey);
             }
         };
@@ -457,10 +465,7 @@
 
         const porterStem = (word) => {
             if (STEM_CACHE.has(word)) {
-                const cached = STEM_CACHE.get(word);
-                STEM_CACHE.delete(word);
-                STEM_CACHE.set(word, cached);
-                return cached;
+                return STEM_CACHE.get(word);
             }
             let w = word;
             if (w.length < 3) {
@@ -1808,9 +1813,13 @@
             return true;
         };
 
-        const matchesQueryTerms = (record, terms) => (
-            terms.every(term => record.meta.tokenSet.has(term))
-        );
+        const matchesQueryTerms = (record, terms) => {
+            const tokenSet = record.meta?.tokenSet;
+            if (!tokenSet) {
+                return false;
+            }
+            return terms.every(term => tokenSet.has(term));
+        };
 
         const applySearch = (query) => {
             const queryContext = buildNavboostContext(query);
