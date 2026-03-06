@@ -51,7 +51,7 @@
     <section class="engine-panel">
         <div class="engine-header">
             <h2>Deep Funding & Contract Intelligence Engine</h2>
-            <p>State-of-the-art matching blends curated intelligence with deep-scan generated leads. Switch modes to surface funders or service/contract seekers.</p>
+            <p>State-of-the-art matching blends curated intelligence, deep-scan generated leads, and Navboost-style satisfaction signals. Switch modes to surface funders or service/contract seekers.</p>
         </div>
         <div class="engine-controls">
             <div class="control-group">
@@ -199,6 +199,33 @@
         };
         const FUNDING_INTENT_TERMS = ['funding', 'grant', 'csr', 'foundation', 'donation', 'philanthropy', 'impact'];
         const CONTRACT_INTENT_TERMS = ['contract', 'tender', 'rfp', 'service', 'logistics', 'supplier', 'client'];
+        const NAVBOOST_STORAGE_KEY = 'navboostSignals';
+        const NAVBOOST_PENDING_KEY = 'navboostPendingClick';
+        const MS_PER_SECOND = 1000;
+        const MS_PER_MINUTE = 60 * MS_PER_SECOND;
+        const MS_PER_HOUR = 60 * MS_PER_MINUTE;
+        const MS_PER_DAY = 24 * MS_PER_HOUR;
+        const NAVBOOST_SIGNAL_WINDOW_MONTHS = 12 + 1;
+        const NAVBOOST_DAYS_PER_MONTH = 30.44;
+        const NAVBOOST_WINDOW_DAYS = Math.round(NAVBOOST_SIGNAL_WINDOW_MONTHS * NAVBOOST_DAYS_PER_MONTH);
+        const NAVBOOST_WINDOW_MS = NAVBOOST_WINDOW_DAYS * MS_PER_DAY;
+        const NAVBOOST_GOOD_DWELL_MS = 30000;
+        const NAVBOOST_BAD_DWELL_MS = 8000;
+        const NAVBOOST_NEUTRAL_DWELL_MS = Math.round((NAVBOOST_GOOD_DWELL_MS + NAVBOOST_BAD_DWELL_MS) / 2);
+        const NAVBOOST_MAX_DWELL_MS = 5 * MS_PER_MINUTE;
+        const NAVBOOST_MAX_EVENTS = 3000;
+        const NAVBOOST_WEIGHTS = {
+            goodClick: 2.4,
+            badClick: -3.6,
+            satisfaction: 3.2,
+            lastLongest: 4.5,
+            dwellSeconds: 0.05,
+            clusterScale: 0.6
+        };
+        const NAVBOOST_VARIANTS = {
+            exact: 'exact',
+            cluster: 'cluster'
+        };
 
         const normalizeCategoryLabel = (category) => category
             .replace(/\s*\(.*?\)\s*/g, '')
@@ -353,6 +380,13 @@
             category: 'all',
             type: 'all'
         };
+        let navboostStore = {
+            events: [],
+            lastLongestByQuery: {}
+        };
+        let navboostIndex = new Map();
+        let navboostQueryIndex = new Map();
+        let navboostPending = null;
 
         const normalizeText = (text) => (text || '')
             .toString()
@@ -364,6 +398,34 @@
             .trim();
 
         const tokenize = (text) => normalizeText(text).split(' ').filter(Boolean);
+
+        const buildQueryKey = (terms) => terms.join(' ');
+
+        const buildQueryClusterKey = (terms) => Array.from(new Set(terms)).sort().join(' ');
+
+        const getDeviceContext = () => (
+            window.matchMedia('(pointer: coarse)').matches || window.innerWidth <= 768 ? 'mobile' : 'desktop'
+        );
+
+        const getRegionContext = () => (
+            filterState.countries.size === 1 ? Array.from(filterState.countries)[0] : 'multi-region'
+        );
+
+        const buildNavboostRecordKey = (record) => (
+            record.id || slugifySeed(`${record.name}-${record.country}-${record.category}-${record.type}`)
+        );
+
+        const buildNavboostContext = (query, mode = activeMode) => {
+            const terms = tokenize(query);
+            return {
+                terms,
+                queryKey: buildQueryKey(terms),
+                clusterKey: buildQueryClusterKey(terms),
+                device: getDeviceContext(),
+                region: getRegionContext(),
+                mode
+            };
+        };
 
         const CATEGORY_SYNONYMS_BY_MODE = {
             funders: Object.fromEntries(
@@ -416,6 +478,289 @@
             .replace(/'/g, '&#39;');
 
         const isFirebaseConfigured = (config) => Object.values(config).every(value => value && !String(value).includes('YOUR_'));
+
+        const createNavboostStats = () => ({
+            totalClicks: 0,
+            goodClicks: 0,
+            badClicks: 0,
+            totalDwellMs: 0,
+            lastClickAt: 0
+        });
+
+        const updateNavboostStats = (stats, event) => {
+            stats.totalClicks += 1;
+            if (event.type === 'good') stats.goodClicks += 1;
+            if (event.type === 'bad') stats.badClicks += 1;
+            stats.totalDwellMs += event.dwellMs || 0;
+            stats.lastClickAt = Math.max(stats.lastClickAt, event.timestamp || 0);
+        };
+
+        const buildNavboostKey = ({ mode, device, region, variant, queryKey, recordId }) => (
+            [mode, device, region, variant, queryKey || 'all', recordId].join('|')
+        );
+
+        const buildNavboostQueryKey = ({ mode, device, region, variant, queryKey }) => (
+            [mode, device, region, variant, queryKey || 'all'].join('|')
+        );
+
+        const loadNavboostStore = () => {
+            try {
+                return JSON.parse(localStorage.getItem(NAVBOOST_STORAGE_KEY) || '{}');
+            } catch (error) {
+                return {};
+            }
+        };
+
+        const loadNavboostPending = () => {
+            try {
+                return JSON.parse(localStorage.getItem(NAVBOOST_PENDING_KEY) || 'null');
+            } catch (error) {
+                return null;
+            }
+        };
+
+        const saveNavboostStore = () => {
+            localStorage.setItem(NAVBOOST_STORAGE_KEY, JSON.stringify(navboostStore));
+        };
+
+        const clearNavboostPending = () => {
+            navboostPending = null;
+            localStorage.removeItem(NAVBOOST_PENDING_KEY);
+        };
+
+        const pruneNavboostStore = () => {
+            const cutoff = Date.now() - NAVBOOST_WINDOW_MS;
+            navboostStore.events = (navboostStore.events || [])
+                .filter(event => event && event.timestamp >= cutoff)
+                .slice(-NAVBOOST_MAX_EVENTS);
+            navboostStore.lastLongestByQuery = Object.fromEntries(
+                Object.entries(navboostStore.lastLongestByQuery || {})
+                    .filter(([, value]) => value && value.timestamp >= cutoff)
+            );
+        };
+
+        const applyNavboostEventToIndex = (event, variant, queryKey) => {
+            if (!queryKey) {
+                return;
+            }
+            const recordKey = buildNavboostKey({
+                mode: event.mode,
+                device: event.device,
+                region: event.region,
+                variant,
+                queryKey,
+                recordId: event.recordId
+            });
+            const stats = navboostIndex.get(recordKey) || createNavboostStats();
+            updateNavboostStats(stats, event);
+            navboostIndex.set(recordKey, stats);
+
+            const queryKeyRef = buildNavboostQueryKey({
+                mode: event.mode,
+                device: event.device,
+                region: event.region,
+                variant,
+                queryKey
+            });
+            const queryStats = navboostQueryIndex.get(queryKeyRef) || createNavboostStats();
+            updateNavboostStats(queryStats, event);
+            navboostQueryIndex.set(queryKeyRef, queryStats);
+        };
+
+        const rebuildNavboostIndex = () => {
+            navboostIndex = new Map();
+            navboostQueryIndex = new Map();
+            navboostStore.events.forEach((event) => {
+                applyNavboostEventToIndex(event, NAVBOOST_VARIANTS.exact, event.queryKey);
+                applyNavboostEventToIndex(event, NAVBOOST_VARIANTS.cluster, event.clusterKey);
+            });
+        };
+
+        const initNavboostSignals = () => {
+            const stored = loadNavboostStore();
+            navboostStore = {
+                events: Array.isArray(stored.events) ? stored.events : [],
+                lastLongestByQuery: stored.lastLongestByQuery || {}
+            };
+            pruneNavboostStore();
+            rebuildNavboostIndex();
+            saveNavboostStore();
+            navboostPending = loadNavboostPending();
+        };
+
+        const getNavboostClickType = (dwellMs) => {
+            if (dwellMs >= NAVBOOST_GOOD_DWELL_MS) return 'good';
+            if (dwellMs <= NAVBOOST_BAD_DWELL_MS) return 'bad';
+            return 'neutral';
+        };
+
+        const recordNavboostInteraction = (interaction, dwellMs) => {
+            if (!interaction?.recordId || !interaction?.queryKey) {
+                return;
+            }
+            const event = {
+                ...interaction,
+                dwellMs,
+                timestamp: Date.now(),
+                type: getNavboostClickType(dwellMs)
+            };
+            navboostStore.events.push(event);
+            if (event.type === 'good') {
+                const lastLongestKey = buildNavboostQueryKey({
+                    mode: event.mode,
+                    device: event.device,
+                    region: event.region,
+                    variant: NAVBOOST_VARIANTS.exact,
+                    queryKey: event.queryKey
+                });
+                navboostStore.lastLongestByQuery[lastLongestKey] = {
+                    recordId: event.recordId,
+                    timestamp: event.timestamp,
+                    dwellMs: event.dwellMs
+                };
+            }
+            pruneNavboostStore();
+            rebuildNavboostIndex();
+            saveNavboostStore();
+        };
+
+        const registerNavboostClick = (record, actionType, dwellOverride = null) => {
+            if (!record?.recordType) {
+                return;
+            }
+            const context = buildNavboostContext(searchInput.value, record.recordType);
+            if (!context.queryKey) {
+                return;
+            }
+            if (navboostPending) {
+                finalizeNavboostPending();
+            }
+            const interaction = {
+                recordId: record.meta.navId,
+                mode: context.mode,
+                device: context.device,
+                region: context.region,
+                queryKey: context.queryKey,
+                clusterKey: context.clusterKey,
+                actionType,
+                startedAt: Date.now()
+            };
+            if (typeof dwellOverride === 'number') {
+                recordNavboostInteraction(interaction, dwellOverride);
+                return;
+            }
+            navboostPending = interaction;
+            localStorage.setItem(NAVBOOST_PENDING_KEY, JSON.stringify(navboostPending));
+        };
+
+        const finalizeNavboostPending = () => {
+            if (!navboostPending) {
+                return;
+            }
+            if (!navboostPending.startedAt) {
+                clearNavboostPending();
+                return;
+            }
+            const dwellMsRaw = Date.now() - navboostPending.startedAt;
+            if (dwellMsRaw < 0) {
+                clearNavboostPending();
+                return;
+            }
+            const dwellMs = Math.min(dwellMsRaw, NAVBOOST_MAX_DWELL_MS);
+            recordNavboostInteraction(navboostPending, dwellMs);
+            clearNavboostPending();
+        };
+
+        const calculateNavboostScore = (stats) => {
+            if (!stats?.totalClicks) {
+                return 0;
+            }
+            const avgDwellSeconds = (stats.totalDwellMs / MS_PER_SECOND) / stats.totalClicks;
+            const satisfactionRatio = (stats.goodClicks - stats.badClicks) / stats.totalClicks;
+            return (
+                stats.goodClicks * NAVBOOST_WEIGHTS.goodClick +
+                stats.badClicks * NAVBOOST_WEIGHTS.badClick +
+                satisfactionRatio * NAVBOOST_WEIGHTS.satisfaction +
+                avgDwellSeconds * NAVBOOST_WEIGHTS.dwellSeconds
+            );
+        };
+
+        const getNavboostScore = (record, context) => {
+            if (!context.queryKey) {
+                return 0;
+            }
+            const recordId = record.meta.navId;
+            const exactKey = buildNavboostKey({
+                mode: context.mode,
+                device: context.device,
+                region: context.region,
+                variant: NAVBOOST_VARIANTS.exact,
+                queryKey: context.queryKey,
+                recordId
+            });
+            const exactScore = calculateNavboostScore(navboostIndex.get(exactKey));
+            let clusterScore = 0;
+            if (context.clusterKey && context.clusterKey !== context.queryKey) {
+                const clusterKey = buildNavboostKey({
+                    mode: context.mode,
+                    device: context.device,
+                    region: context.region,
+                    variant: NAVBOOST_VARIANTS.cluster,
+                    queryKey: context.clusterKey,
+                    recordId
+                });
+                clusterScore = calculateNavboostScore(navboostIndex.get(clusterKey)) * NAVBOOST_WEIGHTS.clusterScale;
+            }
+            const lastLongestKey = buildNavboostQueryKey({
+                mode: context.mode,
+                device: context.device,
+                region: context.region,
+                variant: NAVBOOST_VARIANTS.exact,
+                queryKey: context.queryKey
+            });
+            const lastLongest = navboostStore.lastLongestByQuery[lastLongestKey];
+            const lastLongestScore = lastLongest?.recordId === recordId ? NAVBOOST_WEIGHTS.lastLongest : 0;
+            return exactScore + clusterScore + lastLongestScore;
+        };
+
+        const buildNavboostSummary = (context, dataset) => {
+            if (!context.queryKey) {
+                return {
+                    goodClicks: 0,
+                    badClicks: 0,
+                    totalClicks: 0,
+                    lastLongestName: null
+                };
+            }
+            const exactKey = buildNavboostQueryKey({
+                mode: context.mode,
+                device: context.device,
+                region: context.region,
+                variant: NAVBOOST_VARIANTS.exact,
+                queryKey: context.queryKey
+            });
+            const clusterKey = buildNavboostQueryKey({
+                mode: context.mode,
+                device: context.device,
+                region: context.region,
+                variant: NAVBOOST_VARIANTS.cluster,
+                queryKey: context.clusterKey
+            });
+            const exactStats = navboostQueryIndex.get(exactKey) || createNavboostStats();
+            const clusterStats = context.clusterKey && context.clusterKey !== context.queryKey
+                ? navboostQueryIndex.get(clusterKey) || createNavboostStats()
+                : createNavboostStats();
+            const lastLongest = navboostStore.lastLongestByQuery[exactKey];
+            const lastLongestName = lastLongest
+                ? dataset.find(record => record.meta.navId === lastLongest.recordId)?.name || null
+                : null;
+            return {
+                goodClicks: exactStats.goodClicks + clusterStats.goodClicks,
+                badClicks: exactStats.badClicks + clusterStats.badClicks,
+                totalClicks: exactStats.totalClicks + clusterStats.totalClicks,
+                lastLongestName
+            };
+        };
 
         const loadScanMeta = () => {
             try {
@@ -528,7 +873,8 @@
                 targetText: normalizeText(record.target),
                 intentText: normalizeText(intentTerms.join(' ')),
                 searchText: normalizeText(searchSource),
-                tokens: tokenize(searchSource)
+                tokens: tokenize(searchSource),
+                navId: buildNavboostRecordKey(record)
             };
             record.meta.tokenSet = new Set(record.meta.tokens);
             return record;
@@ -621,12 +967,19 @@
             populateFilterSelect(typeFilterEl, config.typeOptions, filterState.type);
         };
 
-        const updateEngineMetrics = (visibleCount, dataset) => {
+        const updateEngineMetrics = (visibleCount, dataset, queryContext = buildNavboostContext(searchInput.value)) => {
             const config = getModeConfig(activeMode);
             const countries = new Set(dataset.map(record => record.country));
             const categories = new Set(dataset.map(record => record.category));
             const scanStamp = scanMeta?.[activeMode]?.lastScan;
             const scanLabel = scanStamp ? new Date(scanStamp).toLocaleString() : 'Not run yet';
+            const navboostSnapshot = buildNavboostSummary(queryContext, dataset);
+            const navboostLabel = navboostSnapshot.totalClicks
+                ? `${navboostSnapshot.goodClicks} good / ${navboostSnapshot.badClicks} bad`
+                : 'Awaiting signals';
+            const navboostTitle = navboostSnapshot.lastLongestName
+                ? `Last longest click: ${navboostSnapshot.lastLongestName}`
+                : 'No long-click leader yet';
             engineMetricsEl.innerHTML = `
                 <div class="metric-card">
                     <span>${config.label} results</span>
@@ -643,6 +996,10 @@
                 <div class="metric-card">
                     <span>Deep scan</span>
                     <strong>${scanLabel}</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Navboost signals (${NAVBOOST_SIGNAL_WINDOW_MONTHS} months)</span>
+                    <strong title="${escapeHtml(navboostTitle)}">${escapeHtml(navboostLabel)}</strong>
                 </div>
             `;
         };
@@ -794,6 +1151,7 @@
             data.forEach((record) => {
                 const row = document.createElement('tr');
                 const datasetIndex = dataset.indexOf(record);
+                row.dataset.recordIndex = datasetIndex;
                 const website = sanitizeWebsite(record.website);
                 const safeWebsite = website ? `<a href="${website}" target="_blank" rel="noopener noreferrer">${escapeHtml(website)}</a>` : 'N/A';
                 row.innerHTML = `
@@ -815,6 +1173,23 @@
         };
 
         const handleTableAction = (event) => {
+            const link = event.target.closest('a');
+            if (link && link.href) {
+                const row = link.closest('tr');
+                const rowIndex = row?.dataset?.recordIndex;
+                if (rowIndex === undefined || !/^\d+$/.test(rowIndex)) {
+                    return;
+                }
+                const datasetIndex = Number.parseInt(rowIndex, 10);
+                const dataset = getActiveDataset();
+                if (datasetIndex < 0 || datasetIndex >= dataset.length) {
+                    return;
+                }
+                const record = dataset[datasetIndex];
+                if (record) {
+                    registerNavboostClick(record, 'website');
+                }
+            }
             const button = event.target.closest('button[data-action]');
             if (!button) {
                 return;
@@ -832,12 +1207,14 @@
                 deleteRecord(index);
             } else if (action === 'email') {
                 const website = sanitizeWebsite(record.website);
+                registerNavboostClick(record, 'email', NAVBOOST_NEUTRAL_DWELL_MS);
                 sendEmail(record, website);
             }
         };
 
-        const scoreRecord = (record, terms) => {
+        const scoreRecord = (record, context) => {
             const { weights } = getModeConfig(record.recordType || activeMode);
+            const { terms } = context;
             let score = 0;
             terms.forEach(term => {
                 if (record.meta.nameText.includes(term)) score += weights.name;
@@ -854,6 +1231,7 @@
                     score += weights.phrase;
                 }
             }
+            score += getNavboostScore(record, context);
             return score;
         };
 
@@ -918,17 +1296,18 @@
         };
 
         const applySearch = (query) => {
-            const terms = tokenize(query);
+            const queryContext = buildNavboostContext(query);
+            const { terms } = queryContext;
             const dataset = getActiveDataset();
             const filtered = dataset.filter(record => matchesFilters(record) && (!terms.length || terms.every(term => termMatches(record, term))));
             const ranked = terms.length
                 ? filtered
-                    .map(record => ({ record, score: scoreRecord(record, terms) }))
+                    .map(record => ({ record, score: scoreRecord(record, queryContext) }))
                     .sort((a, b) => b.score - a.score)
                     .map(entry => entry.record)
                 : filtered;
             renderTable(ranked);
-            updateEngineMetrics(ranked.length, dataset);
+            updateEngineMetrics(ranked.length, dataset, queryContext);
             saveSearchState();
         };
 
@@ -1040,6 +1419,10 @@
             populateSelect('newCountry', COUNTRY_OPTIONS, DEFAULT_COUNTRY);
             renderCountryFilters();
             scanMeta = loadScanMeta();
+            initNavboostSignals();
+            if (document.visibilityState === 'visible') {
+                finalizeNavboostPending();
+            }
             const savedState = loadSearchState();
             if (savedState.mode && MODE_CONFIG[savedState.mode]) {
                 activeMode = savedState.mode;
@@ -1103,6 +1486,12 @@
             clearFiltersButton.addEventListener('click', () => {
                 resetFilters();
             });
+            document.addEventListener('visibilitychange', () => {
+                if (document.visibilityState === 'visible') {
+                    finalizeNavboostPending();
+                }
+            });
+            window.addEventListener('focus', finalizeNavboostPending);
         };
 
         init();
