@@ -205,13 +205,13 @@
         const MS_PER_MINUTE = 60 * MS_PER_SECOND;
         const MS_PER_HOUR = 60 * MS_PER_MINUTE;
         const MS_PER_DAY = 24 * MS_PER_HOUR;
-        const NAVBOOST_WINDOW_MONTHS = 13;
-        const NAVBOOST_DAYS_PER_MONTH = 365.25 / 12;
-        const NAVBOOST_WINDOW_DAYS = Math.round(NAVBOOST_WINDOW_MONTHS * NAVBOOST_DAYS_PER_MONTH);
+        const NAVBOOST_SIGNAL_WINDOW_MONTHS = 12 + 1;
+        const NAVBOOST_DAYS_PER_MONTH = 30.44;
+        const NAVBOOST_WINDOW_DAYS = Math.round(NAVBOOST_SIGNAL_WINDOW_MONTHS * NAVBOOST_DAYS_PER_MONTH);
         const NAVBOOST_WINDOW_MS = NAVBOOST_WINDOW_DAYS * MS_PER_DAY;
         const NAVBOOST_GOOD_DWELL_MS = 30000;
         const NAVBOOST_BAD_DWELL_MS = 8000;
-        const NAVBOOST_EMAIL_DWELL_MS = 15000;
+        const NAVBOOST_NEUTRAL_DWELL_MS = Math.round((NAVBOOST_GOOD_DWELL_MS + NAVBOOST_BAD_DWELL_MS) / 2);
         const NAVBOOST_MAX_DWELL_MS = 5 * MS_PER_MINUTE;
         const NAVBOOST_MAX_EVENTS = 3000;
         const NAVBOOST_WEIGHTS = {
@@ -487,6 +487,14 @@
             lastClickAt: 0
         });
 
+        const updateNavboostStats = (stats, event) => {
+            stats.totalClicks += 1;
+            if (event.type === 'good') stats.goodClicks += 1;
+            if (event.type === 'bad') stats.badClicks += 1;
+            stats.totalDwellMs += event.dwellMs || 0;
+            stats.lastClickAt = Math.max(stats.lastClickAt, event.timestamp || 0);
+        };
+
         const buildNavboostKey = ({ mode, device, region, variant, queryKey, recordId }) => (
             [mode, device, region, variant, queryKey || 'all', recordId].join('|')
         );
@@ -544,11 +552,7 @@
                 recordId: event.recordId
             });
             const stats = navboostIndex.get(recordKey) || createNavboostStats();
-            stats.totalClicks += 1;
-            if (event.type === 'good') stats.goodClicks += 1;
-            if (event.type === 'bad') stats.badClicks += 1;
-            stats.totalDwellMs += event.dwellMs || 0;
-            stats.lastClickAt = Math.max(stats.lastClickAt, event.timestamp || 0);
+            updateNavboostStats(stats, event);
             navboostIndex.set(recordKey, stats);
 
             const queryKeyRef = buildNavboostQueryKey({
@@ -559,11 +563,7 @@
                 queryKey
             });
             const queryStats = navboostQueryIndex.get(queryKeyRef) || createNavboostStats();
-            queryStats.totalClicks += 1;
-            if (event.type === 'good') queryStats.goodClicks += 1;
-            if (event.type === 'bad') queryStats.badClicks += 1;
-            queryStats.totalDwellMs += event.dwellMs || 0;
-            queryStats.lastClickAt = Math.max(queryStats.lastClickAt, event.timestamp || 0);
+            updateNavboostStats(queryStats, event);
             navboostQueryIndex.set(queryKeyRef, queryStats);
         };
 
@@ -625,7 +625,10 @@
         };
 
         const registerNavboostClick = (record, actionType, dwellOverride = null) => {
-            const context = buildNavboostContext(searchInput.value, record.recordType || activeMode);
+            if (!record?.recordType) {
+                return;
+            }
+            const context = buildNavboostContext(searchInput.value, record.recordType);
             if (!context.queryKey) {
                 return;
             }
@@ -658,17 +661,21 @@
                 clearNavboostPending();
                 return;
             }
-            const dwellMsRaw = Math.max(Date.now() - navboostPending.startedAt, 0);
+            const dwellMsRaw = Date.now() - navboostPending.startedAt;
+            if (dwellMsRaw < 0) {
+                clearNavboostPending();
+                return;
+            }
             const dwellMs = Math.min(dwellMsRaw, NAVBOOST_MAX_DWELL_MS);
             recordNavboostInteraction(navboostPending, dwellMs);
             clearNavboostPending();
         };
 
         const calculateNavboostScore = (stats) => {
-            if (!stats || stats.totalClicks === 0) {
+            if (!stats?.totalClicks) {
                 return 0;
             }
-            const avgDwellSeconds = stats.totalDwellMs / stats.totalClicks / MS_PER_SECOND;
+            const avgDwellSeconds = (stats.totalDwellMs / MS_PER_SECOND) / stats.totalClicks;
             const satisfactionRatio = (stats.goodClicks - stats.badClicks) / stats.totalClicks;
             return (
                 stats.goodClicks * NAVBOOST_WEIGHTS.goodClick +
@@ -991,7 +998,7 @@
                     <strong>${scanLabel}</strong>
                 </div>
                 <div class="metric-card">
-                    <span>Navboost signals (${NAVBOOST_WINDOW_MONTHS} months)</span>
+                    <span>Navboost signals (${NAVBOOST_SIGNAL_WINDOW_MONTHS} months)</span>
                     <strong title="${escapeHtml(navboostTitle)}">${escapeHtml(navboostLabel)}</strong>
                 </div>
             `;
@@ -1144,7 +1151,7 @@
             data.forEach((record) => {
                 const row = document.createElement('tr');
                 const datasetIndex = dataset.indexOf(record);
-                row.dataset.index = datasetIndex;
+                row.dataset.recordIndex = datasetIndex;
                 const website = sanitizeWebsite(record.website);
                 const safeWebsite = website ? `<a href="${website}" target="_blank" rel="noopener noreferrer">${escapeHtml(website)}</a>` : 'N/A';
                 row.innerHTML = `
@@ -1169,15 +1176,15 @@
             const link = event.target.closest('a');
             if (link && link.href) {
                 const row = link.closest('tr');
-                const rowIndex = row?.dataset?.index;
-                if (rowIndex === undefined) {
+                const rowIndex = row?.dataset?.recordIndex;
+                if (rowIndex === undefined || !/^\d+$/.test(rowIndex)) {
                     return;
                 }
-                const datasetIndex = Number(rowIndex);
-                if (Number.isNaN(datasetIndex)) {
-                    return;
-                }
+                const datasetIndex = Number.parseInt(rowIndex, 10);
                 const dataset = getActiveDataset();
+                if (datasetIndex < 0 || datasetIndex >= dataset.length) {
+                    return;
+                }
                 const record = dataset[datasetIndex];
                 if (record) {
                     registerNavboostClick(record, 'website');
@@ -1200,7 +1207,7 @@
                 deleteRecord(index);
             } else if (action === 'email') {
                 const website = sanitizeWebsite(record.website);
-                registerNavboostClick(record, 'email', NAVBOOST_EMAIL_DWELL_MS);
+                registerNavboostClick(record, 'email', NAVBOOST_NEUTRAL_DWELL_MS);
                 sendEmail(record, website);
             }
         };
