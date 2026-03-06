@@ -83,15 +83,15 @@
             'Youth Development'
         ];
         const TYPE_OPTIONS = ['Foundation', 'Corporate', 'Listed Company', 'Government/Agency'];
-        const CATEGORY_SYNONYMS = {
-            'education schools': ['school', 'schooling', 'education', 'learners', 'teachers', 'scholarship'],
-            'orphanage child welfare': ['orphan', 'orphans', 'children home', 'childcare', 'child welfare'],
-            'hospice palliative care': ['hospice', 'palliative', 'terminal care', 'end of life'],
-            'elderly care': ['elderly', 'seniors', 'old age', 'aged care'],
-            'disability support': ['disabled', 'disability', 'special needs', 'intellectual disability'],
-            'community health': ['health', 'clinic', 'medical', 'public health'],
-            'food security': ['nutrition', 'hunger', 'food relief', 'food parcels'],
-            'youth development': ['youth', 'skills', 'employment', 'training']
+        const CATEGORY_SYNONYM_SEED = {
+            'Education (Schools)': ['school', 'schooling', 'education', 'learners', 'teachers', 'scholarship'],
+            'Orphanage & Child Welfare': ['orphan', 'orphans', 'children home', 'childcare', 'child welfare'],
+            'Hospice & Palliative Care': ['hospice', 'palliative', 'terminal care', 'end of life'],
+            'Elderly Care': ['elderly', 'seniors', 'old age', 'aged care'],
+            'Disability Support': ['disabled', 'disability', 'special needs', 'intellectual disability'],
+            'Community Health': ['health', 'clinic', 'medical', 'public health'],
+            'Food Security': ['nutrition', 'hunger', 'food relief', 'food parcels'],
+            'Youth Development': ['youth', 'skills', 'employment', 'training']
         };
 
         const initialData = [
@@ -116,6 +116,7 @@
 
         const statusEl = document.getElementById('status');
         const searchInput = document.getElementById('search');
+        const tableBody = document.querySelector('#fundersTable tbody');
         let funders = [];
         let db = null;
         let firebaseReady = false;
@@ -133,6 +134,10 @@
 
         const tokenize = (text) => normalizeText(text).split(' ').filter(Boolean);
 
+        const CATEGORY_SYNONYMS = Object.fromEntries(
+            Object.entries(CATEGORY_SYNONYM_SEED).map(([key, value]) => [normalizeText(key), value])
+        );
+
         const escapeHtml = (value) => (value || '')
             .toString()
             .replace(/&/g, '&amp;')
@@ -140,11 +145,6 @@
             .replace(/>/g, '&gt;')
             .replace(/"/g, '&quot;')
             .replace(/'/g, '&#39;');
-
-        const escapeForInline = (value) => (value || '')
-            .toString()
-            .replace(/\\/g, '\\\\')
-            .replace(/'/g, "\\'");
 
         const isFirebaseConfigured = (config) => Object.values(config).every(value => value && !String(value).includes('YOUR_'));
 
@@ -199,6 +199,15 @@
             return /^https?:\/\//i.test(trimmed) ? trimmed : '';
         };
 
+        const resolveOption = (value, options, fallback) => {
+            if (value === null) {
+                return fallback;
+            }
+            const normalized = normalizeText(value);
+            const match = options.find(option => normalizeText(option) === normalized);
+            return match || fallback;
+        };
+
         const populateSelect = (selectId, options, defaultValue) => {
             const select = document.getElementById(selectId);
             select.innerHTML = options.map(option => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join('');
@@ -241,9 +250,14 @@
 
         const seedFirebase = async () => {
             const collectionRef = firestoreSdk.collection(db, 'funders');
+            const seeded = [];
             for (const entry of initialData) {
-                await firestoreSdk.addDoc(collectionRef, { ...stripMeta(prepareFunder(entry)), lastUpdated: firestoreSdk.serverTimestamp() });
+                const prepared = prepareFunder(entry);
+                const docRef = await firestoreSdk.addDoc(collectionRef, { ...stripMeta(prepared), lastUpdated: firestoreSdk.serverTimestamp() });
+                prepared.id = docRef.id;
+                seeded.push(prepared);
             }
+            return seeded;
         };
 
         const loadFunders = async () => {
@@ -252,10 +266,10 @@
                 try {
                     const snapshot = await firestoreSdk.getDocs(firestoreSdk.collection(db, 'funders'));
                     if (snapshot.empty) {
-                        await seedFirebase();
+                        funders = await seedFirebase();
+                    } else {
+                        funders = snapshot.docs.map(docSnap => prepareFunder({ id: docSnap.id, ...docSnap.data() }));
                     }
-                    const refreshed = await firestoreSdk.getDocs(firestoreSdk.collection(db, 'funders'));
-                    funders = refreshed.docs.map(docSnap => prepareFunder({ id: docSnap.id, ...docSnap.data() }));
                     loadedFromFirebase = true;
                 } catch (error) {
                     console.error('Firebase load failed', error);
@@ -311,8 +325,7 @@
         };
 
         const renderTable = (data) => {
-            const tbody = document.querySelector('#fundersTable tbody');
-            tbody.innerHTML = '';
+            tableBody.innerHTML = '';
             data.forEach((funder, index) => {
                 const row = document.createElement('tr');
                 const website = sanitizeWebsite(funder.website);
@@ -326,13 +339,34 @@
                     <td>${safeWebsite}</td>
                     <td>${escapeHtml(funder.contacts || 'N/A')}</td>
                     <td>
-                        <button class="edit-btn" onclick="editFunder(${index})">Edit</button>
-                        <button class="delete-btn" onclick="deleteFunder(${index})">Delete</button>
-                        <button class="email-btn" onclick="sendEmail('${escapeForInline(funder.name)}', '${escapeForInline(website)}', '${escapeForInline(funder.contacts || '')}', '${escapeForInline(funder.country)}', '${escapeForInline(funder.category)}')">Email</button>
+                        <button class="edit-btn" data-action="edit" data-index="${index}">Edit</button>
+                        <button class="delete-btn" data-action="delete" data-index="${index}">Delete</button>
+                        <button class="email-btn" data-action="email" data-index="${index}">Email</button>
                     </td>
                 `;
-                tbody.appendChild(row);
+                tableBody.appendChild(row);
             });
+        };
+
+        const handleTableAction = (event) => {
+            const button = event.target.closest('button[data-action]');
+            if (!button) {
+                return;
+            }
+            const index = Number(button.dataset.index);
+            const funder = funders[index];
+            if (!funder) {
+                return;
+            }
+            const action = button.dataset.action;
+            if (action === 'edit') {
+                editFunder(index);
+            } else if (action === 'delete') {
+                deleteFunder(index);
+            } else if (action === 'email') {
+                const website = sanitizeWebsite(funder.website);
+                sendEmail(funder.name, website, funder.contacts || '', funder.country, funder.category);
+            }
         };
 
         const scoreFunder = (funder, terms) => {
@@ -348,20 +382,31 @@
         };
 
         const levenshteinDistance = (a, b) => {
-            const matrix = Array.from({ length: a.length + 1 }, () => new Array(b.length + 1).fill(0));
-            for (let i = 0; i <= a.length; i += 1) matrix[i][0] = i;
-            for (let j = 0; j <= b.length; j += 1) matrix[0][j] = j;
-            for (let i = 1; i <= a.length; i += 1) {
-                for (let j = 1; j <= b.length; j += 1) {
-                    const cost = a[i - 1] === b[j - 1] ? 0 : 1;
-                    matrix[i][j] = Math.min(
-                        matrix[i - 1][j] + 1,
-                        matrix[i][j - 1] + 1,
-                        matrix[i - 1][j - 1] + cost
+            if (a === b) return 0;
+            let longer = a;
+            let shorter = b;
+            if (a.length < b.length) {
+                longer = b;
+                shorter = a;
+            }
+            const previous = new Array(shorter.length + 1).fill(0);
+            const current = new Array(shorter.length + 1).fill(0);
+            for (let j = 0; j <= shorter.length; j += 1) previous[j] = j;
+            for (let i = 1; i <= longer.length; i += 1) {
+                current[0] = i;
+                for (let j = 1; j <= shorter.length; j += 1) {
+                    const cost = longer[i - 1] === shorter[j - 1] ? 0 : 1;
+                    current[j] = Math.min(
+                        previous[j] + 1,
+                        current[j - 1] + 1,
+                        previous[j - 1] + cost
                     );
                 }
+                for (let j = 0; j <= shorter.length; j += 1) {
+                    previous[j] = current[j];
+                }
             }
-            return matrix[a.length][b.length];
+            return previous[shorter.length];
         };
 
         const termMatches = (funder, term) => {
@@ -405,14 +450,14 @@
             const target = document.getElementById('newTarget').value.trim();
             const website = document.getElementById('newWebsite').value.trim();
             const contacts = document.getElementById('newContacts').value.trim();
-            if (name && target && country && category) {
+            if (name && target && country && category && type) {
                 const funder = prepareFunder({ name, country, category, type, target, website, contacts });
                 funders.push(funder);
                 await persistFunder(funder);
                 renderTable(funders);
                 clearInputs();
             } else {
-                alert('Name, Country, Category, and Funding Target are required.');
+                alert('Name, Country, Category, Type, and Funding Target are required.');
             }
         };
 
@@ -426,9 +471,9 @@
             const newWebsite = prompt('Edit Website:', funder.website);
             const newContacts = prompt('Edit Contacts:', funder.contacts);
             if (newName !== null) funder.name = newName.trim();
-            if (newCountry !== null) funder.country = newCountry.trim();
-            if (newCategory !== null) funder.category = newCategory.trim();
-            if (newType !== null) funder.type = newType.trim();
+            if (newCountry !== null) funder.country = resolveOption(newCountry, COUNTRY_OPTIONS, funder.country);
+            if (newCategory !== null) funder.category = resolveOption(newCategory, CATEGORY_OPTIONS, funder.category);
+            if (newType !== null) funder.type = resolveOption(newType, TYPE_OPTIONS, funder.type);
             if (newTarget !== null) funder.target = newTarget.trim();
             if (newWebsite !== null) funder.website = newWebsite.trim();
             if (newContacts !== null) funder.contacts = newContacts.trim();
@@ -474,13 +519,11 @@
             await initFirebaseSdk();
             setupFirebase();
             await loadFunders();
+            tableBody.addEventListener('click', handleTableAction);
             searchInput.addEventListener('input', (e) => {
                 applySearch(e.target.value);
             });
             window.addFunder = addFunder;
-            window.editFunder = editFunder;
-            window.deleteFunder = deleteFunder;
-            window.sendEmail = sendEmail;
         };
 
         init();
