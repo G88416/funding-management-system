@@ -192,14 +192,14 @@
             'Facilities & Security': ['facilities', 'security', 'guarding', 'compliance'],
             'Consulting & Advisory': ['consulting', 'advisory', 'strategy', 'operations']
         };
-        const FUNDING_COUNTRY_TARGETS = {
+        const FUNDERS_COUNTRY_TARGETS = {
             'South Africa': 240,
             'Brazil': 40,
             'India': 40,
             'China': 40,
             'Russia': 40
         };
-        const CONTRACT_COUNTRY_TARGETS = {
+        const OPPORTUNITY_COUNTRY_TARGETS = {
             'South Africa': 120,
             'Brazil': 20,
             'India': 20,
@@ -207,8 +207,8 @@
             'Russia': 20
         };
         const sumCountryTargets = (targets) => Object.values(targets).reduce((total, value) => total + value, 0);
-        const FUNDERS_TOTAL_RECORDS = sumCountryTargets(FUNDING_COUNTRY_TARGETS);
-        const OPPORTUNITY_TOTAL_RECORDS = sumCountryTargets(CONTRACT_COUNTRY_TARGETS);
+        const FUNDERS_TOTAL_RECORDS = sumCountryTargets(FUNDERS_COUNTRY_TARGETS);
+        const OPPORTUNITY_TOTAL_RECORDS = sumCountryTargets(OPPORTUNITY_COUNTRY_TARGETS);
         const FUNDING_INTENT_TERMS = ['funding', 'grant', 'csr', 'foundation', 'donation', 'philanthropy', 'impact'];
         const CONTRACT_INTENT_TERMS = ['contract', 'tender', 'rfp', 'service', 'logistics', 'supplier', 'client'];
         const MS_PER_SECOND = 1000;
@@ -308,7 +308,7 @@
         const buildFundingDataset = () => {
             const generated = [];
             COUNTRY_OPTIONS.forEach((country, countryIndex) => {
-                const target = FUNDING_COUNTRY_TARGETS[country] || 0;
+                const target = FUNDERS_COUNTRY_TARGETS[country] || 0;
                 const curated = seedFunders.filter(entry => entry.country === country).slice(0, target);
                 curated.forEach(entry => generated.push({ ...entry, recordType: 'funders', discovery: 'Curated' }));
                 const needed = Math.max(target - curated.length, 0);
@@ -338,7 +338,7 @@
         const buildContractDataset = () => {
             const generated = [];
             COUNTRY_OPTIONS.forEach((country, countryIndex) => {
-                const target = CONTRACT_COUNTRY_TARGETS[country] || 0;
+                const target = OPPORTUNITY_COUNTRY_TARGETS[country] || 0;
                 const code = country.slice(0, 2).toLowerCase();
                 for (let i = 1; i <= target; i += 1) {
                     const category = CONTRACT_CATEGORY_OPTIONS[(i - 1) % CONTRACT_CATEGORY_OPTIONS.length];
@@ -625,14 +625,19 @@
             )
         };
 
+        const MODE_COPY = {
+            resultsLabel: 'Search Results',
+            formHelp: 'Add new records to the active engine.'
+        };
+
         const MODE_CONFIG = {
             funders: {
                 label: 'Funding Intelligence',
-                resultsLabel: 'Search Results',
+                resultsLabel: MODE_COPY.resultsLabel,
                 typeLabel: 'Record Type',
                 targetLabel: 'Target',
                 targetPlaceholder: 'Target (e.g., focus areas, regions)',
-                formHelp: 'Add new records to the active engine.',
+                formHelp: MODE_COPY.formHelp,
                 categoryOptions: CATEGORY_OPTIONS,
                 typeOptions: TYPE_OPTIONS,
                 intentTerms: FUNDING_INTENT_TERMS,
@@ -642,11 +647,11 @@
             },
             contracts: {
                 label: 'Opportunity Leads',
-                resultsLabel: 'Search Results',
+                resultsLabel: MODE_COPY.resultsLabel,
                 typeLabel: 'Opportunity Type',
                 targetLabel: 'Need',
                 targetPlaceholder: 'Need (e.g., focus areas, requirements)',
-                formHelp: 'Add new records to the active engine.',
+                formHelp: MODE_COPY.formHelp,
                 categoryOptions: CONTRACT_CATEGORY_OPTIONS,
                 typeOptions: CONTRACT_TYPE_OPTIONS,
                 intentTerms: CONTRACT_INTENT_TERMS,
