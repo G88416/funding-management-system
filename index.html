@@ -126,12 +126,15 @@
             appId: "YOUR_APP_ID"
         };
 
-        const LOCAL_STORAGE_KEYS = {
+        const FIREBASE_COLLECTIONS = {
             funders: 'funders',
-            contracts: 'contractLeads'
+            contracts: 'contractLeads',
+            navboost: 'navboostSignals',
+            scanMeta: 'scanMeta',
+            searchState: 'searchState',
+            searchIndex: 'searchIndexes'
         };
-        const SEARCH_STATE_KEY = 'searchEngineState';
-        const SCAN_META_KEY = 'deepScanMeta';
+        const SEARCH_INDEX_VERSION = 1;
         const DEFAULT_COUNTRY = 'South Africa';
         const COUNTRY_OPTIONS = ['South Africa', 'Russia', 'China', 'Brazil', 'India'];
         const CATEGORY_OPTIONS = [
@@ -159,8 +162,13 @@
         const TYPE_OPTIONS = ['Foundation', 'Corporate', 'Listed Company', 'Government/Agency'];
         const CONTRACT_TYPE_OPTIONS = ['Request for Proposal', 'Supplier Search', 'Framework Agreement', 'Tender Notice', 'Service Contract'];
         const FIRESTORE_BATCH_SIZE = 500;
-        const MIN_FUZZY_LENGTH = 4;
-        const MAX_EDIT_DISTANCE = 1;
+        const BM25_CONFIG = {
+            k1: 1.5,
+            b: 0.75,
+            phraseBoost: 1.8,
+            vectorBoost: 0.35
+        };
+        const PERSISTENCE_SAVE_DELAY_MS = 800;
         const FUNDING_CATEGORY_SYNONYM_SEED = {
             'Education (Schools)': ['school', 'schooling', 'education', 'learners', 'teachers', 'scholarship'],
             'Orphanage & Child Welfare': ['orphan', 'orphans', 'children home', 'childcare', 'child welfare'],
@@ -199,8 +207,6 @@
         };
         const FUNDING_INTENT_TERMS = ['funding', 'grant', 'csr', 'foundation', 'donation', 'philanthropy', 'impact'];
         const CONTRACT_INTENT_TERMS = ['contract', 'tender', 'rfp', 'service', 'logistics', 'supplier', 'client'];
-        const NAVBOOST_STORAGE_KEY = 'navboostSignals';
-        const NAVBOOST_PENDING_KEY = 'navboostPendingClick';
         const MS_PER_SECOND = 1000;
         const MS_PER_MINUTE = 60 * MS_PER_SECOND;
         const MS_PER_HOUR = 60 * MS_PER_MINUTE;
@@ -387,6 +393,52 @@
         let navboostIndex = new Map();
         let navboostQueryIndex = new Map();
         let navboostPending = null;
+        let navboostSaveTimer = null;
+        let scanMetaSaveTimer = null;
+        let searchStateSaveTimer = null;
+        const searchIndexCache = {
+            funders: null,
+            contracts: null
+        };
+
+        const STOP_WORDS = new Set([
+            'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'as', 'at',
+            'be', 'because', 'been', 'before', 'being', 'below', 'between', 'both', 'but', 'by', 'can', 'could',
+            'did', 'do', 'does', 'doing', 'down', 'during', 'each', 'few', 'for', 'from', 'further', 'had', 'has',
+            'have', 'having', 'he', 'her', 'here', 'hers', 'herself', 'him', 'himself', 'his', 'how', 'i', 'if',
+            'in', 'into', 'is', 'it', 'its', 'itself', 'just', 'me', 'more', 'most', 'my', 'myself', 'no', 'nor',
+            'not', 'now', 'of', 'off', 'on', 'once', 'only', 'or', 'other', 'our', 'ours', 'ourselves', 'out',
+            'over', 'own', 'same', 'she', 'should', 'so', 'some', 'such', 'than', 'that', 'the', 'their', 'theirs',
+            'them', 'themselves', 'then', 'there', 'these', 'they', 'this', 'those', 'through', 'to', 'too', 'under',
+            'until', 'up', 'very', 'was', 'we', 'were', 'what', 'when', 'where', 'which', 'while', 'who', 'whom',
+            'why', 'with', 'would', 'you', 'your', 'yours', 'yourself', 'yourselves'
+        ]);
+        const STEM_CACHE = new Map();
+        const STEM_CACHE_LIMIT = 2000;
+        const enforceStemCacheLimit = () => {
+            const overflow = STEM_CACHE.size - STEM_CACHE_LIMIT;
+            if (overflow <= 0) {
+                return;
+            }
+            const keys = STEM_CACHE.keys();
+            for (let i = 0; i < overflow; i += 1) {
+                const oldestKey = keys.next().value;
+                if (!oldestKey) {
+                    break;
+                }
+                STEM_CACHE.delete(oldestKey);
+            }
+        };
+
+        let wordSegmenter = null;
+        if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
+            try {
+                wordSegmenter = new Intl.Segmenter('en', { granularity: 'word' });
+            } catch (error) {
+                console.warn('Tokenizer segmenter unavailable', error);
+                wordSegmenter = null;
+            }
+        }
 
         const normalizeText = (text) => (text || '')
             .toString()
@@ -397,7 +449,130 @@
             .replace(/\s+/g, ' ')
             .trim();
 
-        const tokenize = (text) => normalizeText(text).split(' ').filter(Boolean);
+        const extractTokens = (text) => {
+            if (!text) return [];
+            if (wordSegmenter) {
+                try {
+                    return Array.from(wordSegmenter.segment(text))
+                        .map(segment => segment.segment)
+                        .filter(segment => /[a-z0-9]/i.test(segment));
+                } catch (error) {
+                    console.warn('Tokenizer fallback active', error);
+                }
+            }
+            return text.match(/[a-z0-9]+/gi) || [];
+        };
+
+        const porterStem = (word) => {
+            if (STEM_CACHE.has(word)) {
+                return STEM_CACHE.get(word);
+            }
+            let w = word;
+            if (w.length < 3) {
+                STEM_CACHE.set(word, w);
+                enforceStemCacheLimit();
+                return w;
+            }
+            const step2list = {
+                ational: 'ate',
+                tional: 'tion',
+                enci: 'ence',
+                anci: 'ance',
+                izer: 'ize',
+                bli: 'ble',
+                alli: 'al',
+                entli: 'ent',
+                eli: 'e',
+                ousli: 'ous',
+                ization: 'ize',
+                ation: 'ate',
+                ator: 'ate',
+                alism: 'al',
+                iveness: 'ive',
+                fulness: 'ful',
+                ousness: 'ous',
+                aliti: 'al',
+                iviti: 'ive',
+                biliti: 'ble',
+                logi: 'log'
+            };
+            const step3list = {
+                icate: 'ic',
+                ative: '',
+                alize: 'al',
+                iciti: 'ic',
+                ical: 'ic',
+                ful: '',
+                ness: ''
+            };
+            const c = '[^aeiou]';
+            const v = '[aeiouy]';
+            const C = `${c}[^aeiouy]*`;
+            const V = `${v}[aeiou]*`;
+            const mgr0 = new RegExp(`^(${C})?${V}${C}`);
+            const meq1 = new RegExp(`^(${C})?${V}${C}(${V})?$`);
+            const mgr1 = new RegExp(`^(${C})?${V}${C}${V}${C}`);
+            const s_v = new RegExp(`^(${C})?${v}`);
+            let re = /^(.+?)(ss|i)es$/;
+            let re2 = /^(.+?)([^s])s$/;
+            if (re.test(w)) w = w.replace(re, '$1$2');
+            else if (re2.test(w)) w = w.replace(re2, '$1$2');
+            re = /^(.+?)eed$/;
+            re2 = /^(.+?)(ed|ing)$/;
+            if (re.test(w)) {
+                const fp = re.exec(w);
+                if (fp && mgr0.test(fp[1])) w = w.replace(/eed$/, 'ee');
+            } else if (re2.test(w)) {
+                const fp = re2.exec(w);
+                if (fp && s_v.test(fp[1])) {
+                    w = fp[1];
+                    if (/(at|bl|iz)$/.test(w)) w += 'e';
+                    else if (/([^aeiouylsz])\1$/.test(w)) w = w.replace(/.$/, '');
+                    else if (meq1.test(w) && /[^aeiou][aeiouy][^aeiouwxy]$/.test(w)) w += 'e';
+                }
+            }
+            re = /^(.+?)y$/;
+            if (re.test(w)) {
+                const fp = re.exec(w);
+                if (fp && s_v.test(fp[1])) w = fp[1] + 'i';
+            }
+            re = /^(.+?)(ational|tional|enci|anci|izer|bli|alli|entli|eli|ousli|ization|ation|ator|alism|iveness|fulness|ousness|aliti|iviti|biliti|logi)$/;
+            if (re.test(w)) {
+                const fp = re.exec(w);
+                if (fp && mgr0.test(fp[1])) w = fp[1] + step2list[fp[2]];
+            }
+            re = /^(.+?)(icate|ative|alize|iciti|ical|ful|ness)$/;
+            if (re.test(w)) {
+                const fp = re.exec(w);
+                if (fp && mgr0.test(fp[1])) w = fp[1] + step3list[fp[2]];
+            }
+            re = /^(.+?)(al|ance|ence|er|ic|able|ible|ant|ement|ment|ent|ion|ou|ism|ate|iti|ous|ive|ize)$/;
+            if (re.test(w)) {
+                const fp = re.exec(w);
+                if (fp && mgr1.test(fp[1])) {
+                    if (fp[2] !== 'ion' || /[st]$/.test(fp[1])) w = fp[1];
+                }
+            }
+            re = /^(.+?)e$/;
+            if (re.test(w)) {
+                const fp = re.exec(w);
+                if (fp && (mgr1.test(fp[1]) || (meq1.test(fp[1]) && !/[^aeiou][aeiouy][^aeiouwxy]$/.test(fp[1])))) {
+                    w = fp[1];
+                }
+            }
+            if (/ll$/.test(w) && mgr1.test(w)) w = w.replace(/ll$/, 'l');
+            STEM_CACHE.set(word, w);
+            enforceStemCacheLimit();
+            return w;
+        };
+
+        const tokenize = (text) => {
+            const normalized = normalizeText(text);
+            const tokens = extractTokens(normalized)
+                .map(token => porterStem(token))
+                .filter(token => token && !STOP_WORDS.has(token));
+            return tokens;
+        };
 
         const buildQueryKey = (terms) => terms.join(' ');
 
@@ -503,29 +678,46 @@
             [mode, device, region, variant, queryKey || 'all'].join('|')
         );
 
-        const loadNavboostStore = () => {
+        const loadNavboostStore = async () => {
+            if (!firebaseReady) {
+                return {};
+            }
             try {
-                return JSON.parse(localStorage.getItem(NAVBOOST_STORAGE_KEY) || '{}');
+                const docRef = firestoreSdk.doc(db, FIREBASE_COLLECTIONS.navboost, 'signals');
+                const snapshot = await firestoreSdk.getDoc(docRef);
+                return snapshot.exists() ? snapshot.data() : {};
             } catch (error) {
+                console.error('Navboost load failed', error);
                 return {};
             }
         };
 
-        const loadNavboostPending = () => {
+        const saveNavboostStore = async () => {
+            if (!firebaseReady) {
+                return;
+            }
             try {
-                return JSON.parse(localStorage.getItem(NAVBOOST_PENDING_KEY) || 'null');
+                const docRef = firestoreSdk.doc(db, FIREBASE_COLLECTIONS.navboost, 'signals');
+                await firestoreSdk.setDoc(docRef, navboostStore, { merge: true });
             } catch (error) {
-                return null;
+                console.error('Navboost save failed', error);
             }
         };
 
-        const saveNavboostStore = () => {
-            localStorage.setItem(NAVBOOST_STORAGE_KEY, JSON.stringify(navboostStore));
+        const scheduleNavboostSave = () => {
+            if (!firebaseReady) {
+                return;
+            }
+            if (navboostSaveTimer) {
+                clearTimeout(navboostSaveTimer);
+            }
+            navboostSaveTimer = setTimeout(() => {
+                saveNavboostStore();
+            }, PERSISTENCE_SAVE_DELAY_MS);
         };
 
         const clearNavboostPending = () => {
             navboostPending = null;
-            localStorage.removeItem(NAVBOOST_PENDING_KEY);
         };
 
         const pruneNavboostStore = () => {
@@ -576,16 +768,15 @@
             });
         };
 
-        const initNavboostSignals = () => {
-            const stored = loadNavboostStore();
+        const initNavboostSignals = async () => {
+            const stored = await loadNavboostStore();
             navboostStore = {
                 events: Array.isArray(stored.events) ? stored.events : [],
                 lastLongestByQuery: stored.lastLongestByQuery || {}
             };
             pruneNavboostStore();
             rebuildNavboostIndex();
-            saveNavboostStore();
-            navboostPending = loadNavboostPending();
+            scheduleNavboostSave();
         };
 
         const getNavboostClickType = (dwellMs) => {
@@ -621,7 +812,7 @@
             }
             pruneNavboostStore();
             rebuildNavboostIndex();
-            saveNavboostStore();
+            scheduleNavboostSave();
         };
 
         const registerNavboostClick = (record, actionType, dwellOverride = null) => {
@@ -650,7 +841,6 @@
                 return;
             }
             navboostPending = interaction;
-            localStorage.setItem(NAVBOOST_PENDING_KEY, JSON.stringify(navboostPending));
         };
 
         const finalizeNavboostPending = () => {
@@ -762,53 +952,84 @@
             };
         };
 
-        const loadScanMeta = () => {
+        const loadScanMeta = async () => {
+            if (!firebaseReady) {
+                return {};
+            }
             try {
-                return JSON.parse(localStorage.getItem(SCAN_META_KEY) || '{}');
+                const docRef = firestoreSdk.doc(db, FIREBASE_COLLECTIONS.scanMeta, 'meta');
+                const snapshot = await firestoreSdk.getDoc(docRef);
+                return snapshot.exists() ? snapshot.data() : {};
             } catch (error) {
+                console.error('Scan metadata load failed', error);
                 return {};
             }
         };
 
-        const saveScanMeta = () => {
-            localStorage.setItem(SCAN_META_KEY, JSON.stringify(scanMeta));
+        const saveScanMeta = async () => {
+            if (!firebaseReady) {
+                return;
+            }
+            try {
+                const docRef = firestoreSdk.doc(db, FIREBASE_COLLECTIONS.scanMeta, 'meta');
+                await firestoreSdk.setDoc(docRef, scanMeta, { merge: true });
+            } catch (error) {
+                console.error('Scan metadata save failed', error);
+            }
+        };
+
+        const scheduleScanMetaSave = () => {
+            if (!firebaseReady) {
+                return;
+            }
+            if (scanMetaSaveTimer) {
+                clearTimeout(scanMetaSaveTimer);
+            }
+            scanMetaSaveTimer = setTimeout(() => {
+                saveScanMeta();
+            }, PERSISTENCE_SAVE_DELAY_MS);
         };
 
         const markDeepScan = (mode) => {
             scanMeta = {
                 ...scanMeta,
                 [mode]: {
-                    lastScan: new Date().toISOString(),
-                    localOverride: true
+                    lastScan: new Date().toISOString()
                 }
             };
-            saveScanMeta();
+            scheduleScanMetaSave();
         };
-
-        const hasLocalOverride = (mode) => Boolean(scanMeta?.[mode]?.localOverride);
 
         const ensureScanMetaEntry = (mode) => {
             if (!scanMeta?.[mode]?.lastScan) {
                 scanMeta = {
                     ...scanMeta,
                     [mode]: {
-                        lastScan: new Date().toISOString(),
-                        localOverride: Boolean(scanMeta?.[mode]?.localOverride)
+                        lastScan: new Date().toISOString()
                     }
                 };
-                saveScanMeta();
+                scheduleScanMetaSave();
             }
         };
 
-        const loadSearchState = () => {
+        const loadSearchState = async () => {
+            if (!firebaseReady) {
+                return {};
+            }
             try {
-                return JSON.parse(localStorage.getItem(SEARCH_STATE_KEY) || '{}');
+                const docRef = firestoreSdk.doc(db, FIREBASE_COLLECTIONS.searchState, 'state');
+                const snapshot = await firestoreSdk.getDoc(docRef);
+                return snapshot.exists() ? snapshot.data() : {};
             } catch (error) {
+                console.error('Search state load failed', error);
                 return {};
             }
         };
 
-        const saveSearchState = () => {
+        const saveSearchState = async () => {
+            if (!firebaseReady) {
+                return;
+            }
             const state = {
                 mode: activeMode,
                 query: searchInput.value.trim(),
@@ -818,7 +1039,24 @@
                     type: filterState.type
                 }
             };
-            localStorage.setItem(SEARCH_STATE_KEY, JSON.stringify(state));
+            try {
+                const docRef = firestoreSdk.doc(db, FIREBASE_COLLECTIONS.searchState, 'state');
+                await firestoreSdk.setDoc(docRef, state, { merge: true });
+            } catch (error) {
+                console.error('Search state save failed', error);
+            }
+        };
+
+        const scheduleSearchStateSave = () => {
+            if (!firebaseReady) {
+                return;
+            }
+            if (searchStateSaveTimer) {
+                clearTimeout(searchStateSaveTimer);
+            }
+            searchStateSaveTimer = setTimeout(() => {
+                saveSearchState();
+            }, PERSISTENCE_SAVE_DELAY_MS);
         };
 
         const getActiveDataset = () => (activeMode === 'funders' ? funders : contractLeads);
@@ -865,6 +1103,7 @@
                 ...synonyms,
                 ...intentTerms
             ].join(' ');
+            const navId = buildNavboostRecordKey(record);
             record.meta = {
                 nameText: normalizeText(record.name),
                 countryText: normalizeText(record.country),
@@ -874,7 +1113,8 @@
                 intentText: normalizeText(intentTerms.join(' ')),
                 searchText: normalizeText(searchSource),
                 tokens: tokenize(searchSource),
-                navId: buildNavboostRecordKey(record)
+                navId,
+                searchId: record.id || navId
             };
             record.meta.tokenSet = new Set(record.meta.tokens);
             return record;
@@ -883,6 +1123,210 @@
         const stripMeta = (record) => {
             const { meta, id, ...rest } = record;
             return rest;
+        };
+
+        const getRecordSearchId = (record) => (
+            record.id || record.meta?.searchId || record.meta?.navId || buildNavboostRecordKey(record)
+        );
+
+        const buildIndexSignature = (dataset) => JSON.stringify(
+            dataset
+                .map(record => [getRecordSearchId(record), record.meta?.tokens || []])
+                .sort((a, b) => a[0].localeCompare(b[0]))
+        );
+
+        const buildInvertedIndex = (dataset) => {
+            const index = new Map();
+            const docLengths = {};
+            dataset.forEach((record) => {
+                const docId = getRecordSearchId(record);
+                const tokens = record.meta?.tokens || [];
+                docLengths[docId] = tokens.length;
+                tokens.forEach((token, position) => {
+                    if (!token) return;
+                    let entry = index.get(token);
+                    if (!entry) {
+                        entry = { postings: new Map(), df: 0, idf: 0 };
+                        index.set(token, entry);
+                    }
+                    const postings = entry.postings.get(docId);
+                    if (postings) {
+                        postings.push(position);
+                    } else {
+                        entry.postings.set(docId, [position]);
+                    }
+                });
+            });
+            const docCount = dataset.length;
+            const totalLength = Object.values(docLengths).reduce((sum, length) => sum + length, 0);
+            const avgDocLength = docCount ? totalLength / docCount : 0;
+            index.forEach((entry) => {
+                entry.df = entry.postings.size;
+                const numerator = docCount - entry.df + 0.5;
+                const denominator = entry.df + 0.5;
+                entry.idf = Math.log(1 + (numerator / denominator));
+            });
+            return { index, docLengths, docCount, avgDocLength };
+        };
+
+        const buildVectorIndex = (dataset, indexMap) => {
+            const vectors = {};
+            const norms = {};
+            dataset.forEach((record) => {
+                const docId = getRecordSearchId(record);
+                const termCounts = {};
+                (record.meta?.tokens || []).forEach((token) => {
+                    termCounts[token] = (termCounts[token] || 0) + 1;
+                });
+                const weights = {};
+                let sumSquares = 0;
+                Object.entries(termCounts).forEach(([term, tf]) => {
+                    const entry = indexMap.get(term);
+                    if (!entry) return;
+                    const weight = tf * entry.idf;
+                    weights[term] = weight;
+                    sumSquares += weight * weight;
+                });
+                vectors[docId] = weights;
+                norms[docId] = Math.sqrt(sumSquares);
+            });
+            return { vectors, norms };
+        };
+
+        const serializeIndex = (indexMap) => {
+            const payload = {};
+            indexMap.forEach((entry, term) => {
+                payload[term] = {
+                    df: entry.df,
+                    idf: entry.idf,
+                    postings: Object.fromEntries(entry.postings)
+                };
+            });
+            return payload;
+        };
+
+        const deserializeIndex = (payload) => {
+            const indexMap = new Map();
+            if (!payload) return indexMap;
+            Object.entries(payload).forEach(([term, entry]) => {
+                const postings = new Map();
+                Object.entries(entry.postings || {}).forEach(([docId, positions]) => {
+                    postings.set(docId, positions || []);
+                });
+                indexMap.set(term, {
+                    df: entry.df || postings.size,
+                    idf: entry.idf || 0,
+                    postings
+                });
+            });
+            return indexMap;
+        };
+
+        const buildSearchIndexPayload = (dataset) => {
+            const inverted = buildInvertedIndex(dataset);
+            const vectorIndex = buildVectorIndex(dataset, inverted.index);
+            return {
+                version: SEARCH_INDEX_VERSION,
+                generatedAt: new Date().toISOString(),
+                signature: buildIndexSignature(dataset),
+                docCount: inverted.docCount,
+                avgDocLength: inverted.avgDocLength,
+                docLengths: inverted.docLengths,
+                index: inverted.index,
+                vectorIndex
+            };
+        };
+
+        const serializeSearchIndex = (payload) => ({
+            version: payload.version,
+            generatedAt: payload.generatedAt,
+            signature: payload.signature,
+            docCount: payload.docCount,
+            avgDocLength: payload.avgDocLength,
+            docLengths: payload.docLengths,
+            index: serializeIndex(payload.index),
+            vectorIndex: {
+                vectors: payload.vectorIndex?.vectors || {},
+                norms: payload.vectorIndex?.norms || {}
+            }
+        });
+
+        const deserializeSearchIndex = (payload) => {
+            const indexMap = deserializeIndex(payload.index);
+            return {
+                version: payload.version,
+                generatedAt: payload.generatedAt,
+                signature: payload.signature,
+                docCount: payload.docCount || 0,
+                avgDocLength: payload.avgDocLength || 0,
+                docLengths: payload.docLengths || {},
+                index: indexMap,
+                vectorIndex: {
+                    vectors: payload.vectorIndex?.vectors || {},
+                    norms: payload.vectorIndex?.norms || {}
+                }
+            };
+        };
+
+        const loadSearchIndex = async (mode, dataset) => {
+            if (!firebaseReady) {
+                return null;
+            }
+            try {
+                const docRef = firestoreSdk.doc(db, FIREBASE_COLLECTIONS.searchIndex, mode);
+                const snapshot = await firestoreSdk.getDoc(docRef);
+                if (!snapshot.exists()) {
+                    return null;
+                }
+                const data = snapshot.data();
+                const signature = buildIndexSignature(dataset);
+                if (data.version !== SEARCH_INDEX_VERSION) {
+                    console.warn('Search index version mismatch, rebuilding.');
+                    return null;
+                }
+                if (data.docCount !== dataset.length) {
+                    console.warn('Search index document count mismatch, rebuilding.');
+                    return null;
+                }
+                if (data.signature !== signature) {
+                    console.warn('Search index signature mismatch, rebuilding.');
+                    return null;
+                }
+                return deserializeSearchIndex(data);
+            } catch (error) {
+                console.error('Search index load failed', error);
+                return null;
+            }
+        };
+
+        const saveSearchIndex = async (mode, payload) => {
+            if (!firebaseReady) {
+                return;
+            }
+            try {
+                const docRef = firestoreSdk.doc(db, FIREBASE_COLLECTIONS.searchIndex, mode);
+                await firestoreSdk.setDoc(docRef, serializeSearchIndex(payload), { merge: true });
+            } catch (error) {
+                console.error('Search index save failed', error);
+            }
+        };
+
+        const refreshSearchIndex = async (mode, forceRebuild = false) => {
+            const dataset = mode === 'funders' ? funders : contractLeads;
+            if (!dataset.length) {
+                searchIndexCache[mode] = null;
+                return;
+            }
+            if (!forceRebuild) {
+                const cached = await loadSearchIndex(mode, dataset);
+                if (cached) {
+                    searchIndexCache[mode] = cached;
+                    return;
+                }
+            }
+            const payload = buildSearchIndexPayload(dataset);
+            searchIndexCache[mode] = payload;
+            await saveSearchIndex(mode, payload);
         };
 
         const sanitizeWebsite = (website) => {
@@ -1021,7 +1465,7 @@
                 console.error('Firebase SDK failed to load', error);
                 firebaseSdk = null;
                 firestoreSdk = null;
-                updateStatus('Firebase SDK unavailable. Using local cache.', 'warning');
+                updateStatus('Firebase SDK unavailable. Data will be held in-memory until Firebase is configured.', 'warning');
             }
         };
 
@@ -1040,109 +1484,159 @@
                 updateStatus('Firebase connected. Data will sync to Firestore.', 'ready');
             } catch (error) {
                 console.error('Firebase init failed', error);
-                updateStatus('Firebase initialization failed. Using local cache.', 'error');
+                updateStatus('Firebase initialization failed. Data will be held in-memory until Firebase recovers.', 'error');
                 firebaseReady = false;
             }
         };
 
-        const seedFirebase = async () => {
-            const collectionRef = firestoreSdk.collection(db, 'funders');
+        const seedFirestoreCollection = async (mode, dataset) => {
+            const collectionName = mode === 'funders' ? FIREBASE_COLLECTIONS.funders : FIREBASE_COLLECTIONS.contracts;
+            const collectionRef = firestoreSdk.collection(db, collectionName);
             const seeded = [];
+            let pending = [];
             let batch = firestoreSdk.writeBatch(db);
             let batchCount = 0;
-            for (const entry of initialData) {
-                const prepared = prepareRecord(entry, 'funders');
+            for (const entry of dataset) {
+                const prepared = prepareRecord(entry, mode);
                 const docRef = firestoreSdk.doc(collectionRef);
                 batch.set(docRef, { ...stripMeta(prepared), lastUpdated: firestoreSdk.serverTimestamp() });
-                prepared.id = docRef.id;
-                seeded.push(prepared);
+                pending.push({ prepared, docId: docRef.id });
                 batchCount += 1;
                 if (batchCount === FIRESTORE_BATCH_SIZE) {
                     await batch.commit();
+                    pending.forEach(({ prepared: record, docId }) => {
+                        record.id = docId;
+                        record.meta.searchId = docId;
+                        seeded.push(record);
+                    });
                     batch = firestoreSdk.writeBatch(db);
+                    pending = [];
                     batchCount = 0;
                 }
             }
             if (batchCount > 0) {
                 await batch.commit();
+                pending.forEach(({ prepared: record, docId }) => {
+                    record.id = docId;
+                    record.meta.searchId = docId;
+                    seeded.push(record);
+                });
             }
             return seeded;
         };
 
+        const replaceFirestoreCollection = async (mode, dataset) => {
+            if (!firebaseReady) {
+                return null;
+            }
+            const collectionName = mode === 'funders' ? FIREBASE_COLLECTIONS.funders : FIREBASE_COLLECTIONS.contracts;
+            const collectionRef = firestoreSdk.collection(db, collectionName);
+            const snapshot = await firestoreSdk.getDocs(collectionRef);
+            if (!snapshot.empty) {
+                let batch = firestoreSdk.writeBatch(db);
+                let batchCount = 0;
+                for (const docSnap of snapshot.docs) {
+                    batch.delete(docSnap.ref);
+                    batchCount += 1;
+                    if (batchCount === FIRESTORE_BATCH_SIZE) {
+                        await batch.commit();
+                        batch = firestoreSdk.writeBatch(db);
+                        batchCount = 0;
+                    }
+                }
+                if (batchCount > 0) {
+                    await batch.commit();
+                }
+            }
+            return seedFirestoreCollection(mode, dataset);
+        };
+
         const loadFunders = async () => {
-            let loadedFromFirebase = false;
-            if (firebaseReady && !hasLocalOverride('funders')) {
+            if (firebaseReady) {
                 try {
-                    const snapshot = await firestoreSdk.getDocs(firestoreSdk.collection(db, 'funders'));
+                    const snapshot = await firestoreSdk.getDocs(firestoreSdk.collection(db, FIREBASE_COLLECTIONS.funders));
                     if (snapshot.empty) {
-                        funders = await seedFirebase();
+                        funders = await seedFirestoreCollection('funders', initialData);
                     } else {
                         funders = snapshot.docs.map(docSnap => prepareRecord({ id: docSnap.id, ...docSnap.data() }, 'funders'));
                     }
-                    loadedFromFirebase = true;
                 } catch (error) {
                     console.error('Firebase load failed', error);
-                    updateStatus('Firebase sync failed. Using local cache.', 'error');
+                    updateStatus('Firebase sync failed. Data will be held in-memory until Firebase recovers.', 'error');
                     firebaseReady = false;
                 }
             }
-            if (!loadedFromFirebase) {
-                const localData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.funders) || '[]');
-                const source = localData.length ? localData : initialData;
-                funders = source.map(entry => prepareRecord(entry, 'funders'));
+            if (!firebaseReady) {
+                funders = initialData.map(entry => prepareRecord(entry, 'funders'));
             }
-            saveLocalBackup('funders');
             ensureScanMetaEntry('funders');
+            await refreshSearchIndex('funders');
         };
 
-        const loadContractLeads = () => {
-            const localData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.contracts) || '[]');
-            const source = localData.length ? localData : initialContractData;
-            contractLeads = source.map(entry => prepareRecord(entry, 'contracts'));
-            saveLocalBackup('contracts');
+        const loadContractLeads = async () => {
+            if (firebaseReady) {
+                try {
+                    const snapshot = await firestoreSdk.getDocs(firestoreSdk.collection(db, FIREBASE_COLLECTIONS.contracts));
+                    if (snapshot.empty) {
+                        contractLeads = await seedFirestoreCollection('contracts', initialContractData);
+                    } else {
+                        contractLeads = snapshot.docs.map(docSnap => prepareRecord({ id: docSnap.id, ...docSnap.data() }, 'contracts'));
+                    }
+                } catch (error) {
+                    console.error('Firebase load failed', error);
+                    updateStatus('Firebase sync failed. Data will be held in-memory until Firebase recovers.', 'error');
+                    firebaseReady = false;
+                }
+            }
+            if (!firebaseReady) {
+                contractLeads = initialContractData.map(entry => prepareRecord(entry, 'contracts'));
+            }
             ensureScanMetaEntry('contracts');
-        };
-
-        const saveLocalBackup = (mode) => {
-            const dataset = mode ? (mode === 'funders' ? funders : contractLeads) : funders;
-            const storageKey = LOCAL_STORAGE_KEYS[mode || 'funders'];
-            localStorage.setItem(storageKey, JSON.stringify(dataset.map(stripMeta)));
+            await refreshSearchIndex('contracts');
         };
 
         const persistRecord = async (record) => {
             const mode = record.recordType || activeMode;
-            if (mode !== 'funders' || !firebaseReady || hasLocalOverride('funders')) {
-                saveLocalBackup(mode);
+            if (!firebaseReady) {
+                await refreshSearchIndex(mode, true);
                 return;
             }
+            const collectionName = mode === 'funders' ? FIREBASE_COLLECTIONS.funders : FIREBASE_COLLECTIONS.contracts;
             try {
                 if (record.id) {
-                    await firestoreSdk.updateDoc(firestoreSdk.doc(db, 'funders', record.id), { ...stripMeta(record), lastUpdated: firestoreSdk.serverTimestamp() });
+                    await firestoreSdk.updateDoc(
+                        firestoreSdk.doc(db, collectionName, record.id),
+                        { ...stripMeta(record), lastUpdated: firestoreSdk.serverTimestamp() }
+                    );
                 } else {
-                    const docRef = await firestoreSdk.addDoc(firestoreSdk.collection(db, 'funders'), { ...stripMeta(record), lastUpdated: firestoreSdk.serverTimestamp() });
+                    const docRef = await firestoreSdk.addDoc(
+                        firestoreSdk.collection(db, collectionName),
+                        { ...stripMeta(record), lastUpdated: firestoreSdk.serverTimestamp() }
+                    );
                     record.id = docRef.id;
+                    record.meta.searchId = docRef.id;
                 }
-                saveLocalBackup('funders');
             } catch (error) {
                 console.error('Firebase save failed', error);
-                updateStatus('Firebase sync failed while saving. Data cached locally.', 'error');
-                saveLocalBackup('funders');
+                updateStatus('Firebase sync failed while saving. Data is temporarily held in-memory.', 'error');
             }
+            await refreshSearchIndex(mode, true);
         };
 
         const removeRecord = async (record) => {
             const mode = record.recordType || activeMode;
-            if (mode !== 'funders' || !firebaseReady || hasLocalOverride('funders') || !record.id) {
-                saveLocalBackup(mode);
+            if (!firebaseReady || !record.id) {
+                await refreshSearchIndex(mode, true);
                 return;
             }
+            const collectionName = mode === 'funders' ? FIREBASE_COLLECTIONS.funders : FIREBASE_COLLECTIONS.contracts;
             try {
-                await firestoreSdk.deleteDoc(firestoreSdk.doc(db, 'funders', record.id));
-                saveLocalBackup('funders');
+                await firestoreSdk.deleteDoc(firestoreSdk.doc(db, collectionName, record.id));
             } catch (error) {
                 console.error('Firebase delete failed', error);
-                updateStatus('Firebase sync failed while deleting. Data cached locally.', 'error');
+                updateStatus('Firebase sync failed while deleting. Data is temporarily held in-memory.', 'error');
             }
+            await refreshSearchIndex(mode, true);
         };
 
         const renderTable = (data) => {
@@ -1212,71 +1706,95 @@
             }
         };
 
-        const scoreRecord = (record, context) => {
-            const { weights } = getModeConfig(record.recordType || activeMode);
-            const { terms } = context;
-            let score = 0;
-            terms.forEach(term => {
-                if (record.meta.nameText.includes(term)) score += weights.name;
-                if (record.meta.categoryText.includes(term)) score += weights.category;
-                if (record.meta.countryText.includes(term)) score += weights.country;
-                if (record.meta.typeText.includes(term)) score += weights.type;
-                if (record.meta.targetText.includes(term)) score += weights.target;
-                if (record.meta.intentText.includes(term)) score += weights.intent;
-                if (record.meta.searchText.includes(term)) score += weights.search;
+        const buildQueryVector = (terms, indexMap) => {
+            const termCounts = {};
+            terms.forEach((term) => {
+                termCounts[term] = (termCounts[term] || 0) + 1;
             });
-            if (terms.length > 1) {
-                const phrase = terms.join(' ');
-                if (record.meta.searchText.includes(phrase)) {
-                    score += weights.phrase;
-                }
-            }
-            score += getNavboostScore(record, context);
-            return score;
+            const weights = {};
+            let sumSquares = 0;
+            Object.entries(termCounts).forEach(([term, tf]) => {
+                const entry = indexMap.get(term);
+                if (!entry) return;
+                const weight = tf * entry.idf;
+                weights[term] = weight;
+                sumSquares += weight * weight;
+            });
+            return {
+                weights,
+                norm: Math.sqrt(sumSquares)
+            };
         };
 
-        const levenshteinDistance = (a, b) => {
-            if (a === b) return 0;
-            let longer = a;
-            let shorter = b;
-            if (a.length < b.length) {
-                longer = b;
-                shorter = a;
-            }
-            const previous = new Array(shorter.length + 1).fill(0);
-            const current = new Array(shorter.length + 1).fill(0);
-            for (let j = 0; j <= shorter.length; j += 1) previous[j] = j;
-            for (let i = 1; i <= longer.length; i += 1) {
-                current[0] = i;
-                for (let j = 1; j <= shorter.length; j += 1) {
-                    const cost = longer[i - 1] === shorter[j - 1] ? 0 : 1;
-                    current[j] = Math.min(
-                        previous[j] + 1,
-                        current[j - 1] + 1,
-                        previous[j - 1] + cost
-                    );
-                }
-                for (let j = 0; j <= shorter.length; j += 1) {
-                    previous[j] = current[j];
-                }
-            }
-            return previous[shorter.length];
+        const computeBm25Score = (docId, terms, indexPayload) => {
+            if (!indexPayload) return 0;
+            const docLength = indexPayload.docLengths[docId] || 0;
+            const avgLength = indexPayload.avgDocLength || 1;
+            return terms.reduce((total, term) => {
+                const entry = indexPayload.index.get(term);
+                if (!entry) return total;
+                const postings = entry.postings.get(docId);
+                if (!postings) return total;
+                const tf = postings.length;
+                const numerator = tf * (BM25_CONFIG.k1 + 1);
+                const denominator = tf + BM25_CONFIG.k1 * (1 - BM25_CONFIG.b + BM25_CONFIG.b * (docLength / avgLength));
+                return total + entry.idf * (numerator / denominator);
+            }, 0);
         };
 
-        const termMatches = (record, term) => {
-            if (record.meta.tokenSet.has(term)) return true;
-            for (const token of record.meta.tokens) {
-                if (token.startsWith(term) || term.startsWith(token)) return true;
-                if (
-                    term.length >= MIN_FUZZY_LENGTH &&
-                    token.length >= MIN_FUZZY_LENGTH &&
-                    Math.abs(token.length - term.length) <= MAX_EDIT_DISTANCE &&
-                    levenshteinDistance(token, term) <= MAX_EDIT_DISTANCE
-                ) {
-                    return true;
+        const computeVectorScore = (docId, queryVector, vectorIndex) => {
+            if (!queryVector || !vectorIndex) return 0;
+            const docVector = vectorIndex.vectors[docId];
+            if (!docVector) return 0;
+            let dot = 0;
+            Object.entries(queryVector.weights).forEach(([term, weight]) => {
+                const docWeight = docVector[term];
+                if (docWeight) {
+                    dot += weight * docWeight;
                 }
+            });
+            const norm = vectorIndex.norms[docId] || 1;
+            return queryVector.norm && norm ? dot / (queryVector.norm * norm) : 0;
+        };
+
+        const hasPhraseMatch = (docId, terms, indexMap) => {
+            if (terms.length < 2) return false;
+            const positionLists = terms.map(term => indexMap.get(term)?.postings.get(docId) || []);
+            if (positionLists.some(list => !list.length)) return false;
+            const positionSets = positionLists.slice(1).map(list => new Set(list));
+            for (const position of positionLists[0]) {
+                let match = true;
+                for (let i = 0; i < positionSets.length; i += 1) {
+                    if (!positionSets[i].has(position + i + 1)) {
+                        match = false;
+                        break;
+                    }
+                }
+                if (match) return true;
             }
-            return record.meta.searchText.includes(term);
+            return false;
+        };
+
+        const collectCandidateDocIds = (terms, indexMap) => {
+            const candidates = new Set();
+            terms.forEach((term) => {
+                const entry = indexMap.get(term);
+                if (!entry) return;
+                entry.postings.forEach((_, docId) => {
+                    candidates.add(docId);
+                });
+            });
+            return candidates;
+        };
+
+        const scoreRecord = (record, context, indexPayload, queryVector) => {
+            const docId = getRecordSearchId(record);
+            const bm25Score = computeBm25Score(docId, context.terms, indexPayload);
+            const vectorScore = computeVectorScore(docId, queryVector, indexPayload?.vectorIndex);
+            const phraseBoost = indexPayload && hasPhraseMatch(docId, context.terms, indexPayload.index)
+                ? BM25_CONFIG.phraseBoost
+                : 0;
+            return bm25Score + phraseBoost + (vectorScore * BM25_CONFIG.vectorBoost) + getNavboostScore(record, context);
         };
 
         const matchesFilters = (record) => {
@@ -1295,20 +1813,46 @@
             return true;
         };
 
+        const matchesQueryTerms = (record, terms) => {
+            const tokenSet = record.meta?.tokenSet;
+            if (!tokenSet) {
+                return false;
+            }
+            return terms.every(term => tokenSet.has(term));
+        };
+
         const applySearch = (query) => {
             const queryContext = buildNavboostContext(query);
             const { terms } = queryContext;
             const dataset = getActiveDataset();
-            const filtered = dataset.filter(record => matchesFilters(record) && (!terms.length || terms.every(term => termMatches(record, term))));
+            const indexPayload = searchIndexCache[activeMode];
+            const indexMap = indexPayload?.index || new Map();
+            const candidates = terms.length && indexPayload ? collectCandidateDocIds(terms, indexMap) : null;
+            const queryVector = terms.length && indexPayload ? buildQueryVector(terms, indexMap) : null;
+            const filtered = dataset.filter(record => {
+                if (!matchesFilters(record)) return false;
+                if (!terms.length) return true;
+                if (indexPayload && candidates) {
+                    const docId = getRecordSearchId(record);
+                    if (!candidates.has(docId)) return false;
+                    return matchesQueryTerms(record, terms);
+                }
+                return matchesQueryTerms(record, terms);
+            });
             const ranked = terms.length
                 ? filtered
-                    .map(record => ({ record, score: scoreRecord(record, queryContext) }))
+                    .map(record => ({
+                        record,
+                        score: indexPayload
+                            ? scoreRecord(record, queryContext, indexPayload, queryVector)
+                            : 1
+                    }))
                     .sort((a, b) => b.score - a.score)
                     .map(entry => entry.record)
                 : filtered;
             renderTable(ranked);
             updateEngineMetrics(ranked.length, dataset, queryContext);
-            saveSearchState();
+            scheduleSearchStateSave();
         };
 
         const clearInputs = () => {
@@ -1403,27 +1947,33 @@
             window.location.href = `mailto:${emailAddr}?subject=${subject}&body=${body}`;
         };
 
-        const runDeepScan = () => {
+        const runDeepScan = async () => {
             const dataset = activeMode === 'funders' ? buildFundingDataset() : buildContractDataset();
-            const prepared = dataset.map(entry => prepareRecord(entry, activeMode));
+            let prepared = dataset.map(entry => prepareRecord(entry, activeMode));
+            if (firebaseReady) {
+                const synced = await replaceFirestoreCollection(activeMode, dataset);
+                if (synced) {
+                    prepared = synced;
+                }
+                updateStatus('Deep scan completed. Firestore updated with fresh intelligence.', 'ready');
+            }
             setDatasetForMode(activeMode, prepared);
             markDeepScan(activeMode);
-            saveLocalBackup(activeMode);
-            if (activeMode === 'funders' && firebaseReady) {
-                updateStatus('Deep scan completed. Funders stored locally (override active).', 'warning');
-            }
+            await refreshSearchIndex(activeMode, true);
             applySearch(searchInput.value);
         };
 
         const init = async () => {
             populateSelect('newCountry', COUNTRY_OPTIONS, DEFAULT_COUNTRY);
             renderCountryFilters();
-            scanMeta = loadScanMeta();
-            initNavboostSignals();
+            await initFirebaseSdk();
+            setupFirebase();
+            scanMeta = await loadScanMeta();
+            await initNavboostSignals();
             if (document.visibilityState === 'visible') {
                 finalizeNavboostPending();
             }
-            const savedState = loadSearchState();
+            const savedState = await loadSearchState();
             if (savedState.mode && MODE_CONFIG[savedState.mode]) {
                 activeMode = savedState.mode;
             }
@@ -1436,13 +1986,8 @@
             searchModeSelect.value = activeMode;
             updateModeUI();
             searchInput.value = savedState.query || '';
-            await initFirebaseSdk();
-            setupFirebase();
             await loadFunders();
-            loadContractLeads();
-            if (hasLocalOverride('funders')) {
-                updateStatus('Deep scan override active. Using local funder intelligence.', 'warning');
-            }
+            await loadContractLeads();
             applySearch(searchInput.value);
             tableBody.addEventListener('click', handleTableAction);
             addRecordButton.addEventListener('click', async () => {
@@ -1482,7 +2027,12 @@
                 }
                 applySearch(searchInput.value);
             });
-            runDeepScanButton.addEventListener('click', runDeepScan);
+            runDeepScanButton.addEventListener('click', () => {
+                runDeepScan().catch((error) => {
+                    console.error('Deep scan failed', error);
+                    updateStatus('Deep scan failed. Check Firebase connectivity.', 'error');
+                });
+            });
             clearFiltersButton.addEventListener('click', () => {
                 resetFilters();
             });

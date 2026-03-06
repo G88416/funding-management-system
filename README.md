@@ -5,4 +5,4 @@ The search engine now includes Navboost-inspired ranking that learns from user c
 
 ## Firebase setup
 - Update the `firebaseConfig` object in `index.html` with your Firebase project settings.
-- The app syncs to Firestore (collection: `funders`) when Firebase is configured. Without it, data is cached locally in the browser.
+- The app syncs to Firestore (collections: `funders`, `contractLeads`, `searchIndexes`, `navboostSignals`) when Firebase is configured. Without it, data runs in-memory from the seed dataset only.
