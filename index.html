@@ -490,10 +490,6 @@
                 alert('Name and Funding Target are required.');
                 return;
             }
-            if (!country || !category || !type) {
-                alert('Please select a country, category, and funder type.');
-                return;
-            }
             const funder = prepareFunder({ name, country, category, type, target, website, contacts });
             funders.push(funder);
             await persistFunder(funder);
