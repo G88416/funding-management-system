@@ -56,7 +56,7 @@
         <input type="text" id="newTarget" placeholder="Funding Target (e.g., schools, orphanages)">
         <input type="text" id="newWebsite" placeholder="Website (https://...)">
         <input type="text" id="newContacts" placeholder="Contacts (email/phone)">
-        <button onclick="addFunder()">Add New Funder</button>
+        <button id="addFunderButton">Add New Funder</button>
     </div>
 
     <script>
@@ -83,6 +83,9 @@
             'Youth Development'
         ];
         const TYPE_OPTIONS = ['Foundation', 'Corporate', 'Listed Company', 'Government/Agency'];
+        const FIRESTORE_BATCH_SIZE = 500;
+        const MIN_FUZZY_LENGTH = 4;
+        const MAX_EDIT_DISTANCE = 1;
         const CATEGORY_SYNONYM_SEED = {
             'Education (Schools)': ['school', 'schooling', 'education', 'learners', 'teachers', 'scholarship'],
             'Orphanage & Child Welfare': ['orphan', 'orphans', 'children home', 'childcare', 'child welfare'],
@@ -117,6 +120,7 @@
         const statusEl = document.getElementById('status');
         const searchInput = document.getElementById('search');
         const tableBody = document.querySelector('#fundersTable tbody');
+        const addFunderButton = document.getElementById('addFunderButton');
         let funders = [];
         let db = null;
         let firebaseReady = false;
@@ -273,7 +277,7 @@
                 prepared.id = docRef.id;
                 seeded.push(prepared);
                 batchCount += 1;
-                if (batchCount === 500) {
+                if (batchCount === FIRESTORE_BATCH_SIZE) {
                     await batch.commit();
                     batch = firestoreSdk.writeBatch(db);
                     batchCount = 0;
@@ -438,7 +442,14 @@
             if (funder.meta.tokenSet.has(term)) return true;
             for (const token of funder.meta.tokens) {
                 if (token.startsWith(term) || term.startsWith(token)) return true;
-                if (term.length >= 4 && token.length >= 4 && Math.abs(token.length - term.length) <= 1 && levenshteinDistance(token, term) <= 1) return true;
+                if (
+                    term.length >= MIN_FUZZY_LENGTH &&
+                    token.length >= MIN_FUZZY_LENGTH &&
+                    Math.abs(token.length - term.length) <= MAX_EDIT_DISTANCE &&
+                    levenshteinDistance(token, term) <= MAX_EDIT_DISTANCE
+                ) {
+                    return true;
+                }
             }
             return funder.meta.searchText.includes(term);
         };
@@ -553,10 +564,12 @@
             setupFirebase();
             await loadFunders();
             tableBody.addEventListener('click', handleTableAction);
+            addFunderButton.addEventListener('click', () => {
+                addFunder();
+            });
             searchInput.addEventListener('input', (e) => {
                 applySearch(e.target.value);
             });
-            window.addFunder = addFunder;
         };
 
         init();
