@@ -414,6 +414,7 @@
             'why', 'with', 'would', 'you', 'your', 'yours', 'yourself', 'yourselves'
         ]);
         const STEM_CACHE = new Map();
+        const STEM_CACHE_LIMIT = 2000;
 
         let wordSegmenter = null;
         if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
@@ -455,6 +456,10 @@
             let w = word;
             if (w.length < 3) {
                 STEM_CACHE.set(word, w);
+                if (STEM_CACHE.size > STEM_CACHE_LIMIT) {
+                    STEM_CACHE.clear();
+                    STEM_CACHE.set(word, w);
+                }
                 return w;
             }
             const step2list = {
@@ -546,6 +551,10 @@
             }
             if (/ll$/.test(w) && mgr1.test(w)) w = w.replace(/ll$/, 'l');
             STEM_CACHE.set(word, w);
+            if (STEM_CACHE.size > STEM_CACHE_LIMIT) {
+                STEM_CACHE.clear();
+                STEM_CACHE.set(word, w);
+            }
             return w;
         };
 
@@ -1743,7 +1752,7 @@
         const hasPhraseMatch = (docId, terms, indexMap) => {
             if (terms.length < 2) return false;
             const positionLists = terms.map(term => indexMap.get(term)?.postings.get(docId) || []);
-            if (!positionLists[0].length) return false;
+            if (positionLists.some(list => !list.length)) return false;
             const positionSets = positionLists.slice(1).map(list => new Set(list));
             for (const position of positionLists[0]) {
                 let match = true;
@@ -1796,13 +1805,9 @@
             return true;
         };
 
-        const matchesQueryTerms = (record, terms, indexPayload = null, docId = null) => {
-            if (indexPayload) {
-                const resolvedId = docId || getRecordSearchId(record);
-                return terms.every(term => indexPayload.index.get(term)?.postings.has(resolvedId));
-            }
-            return terms.every(term => record.meta.tokenSet.has(term));
-        };
+        const matchesQueryTerms = (record, terms) => (
+            terms.every(term => record.meta.tokenSet.has(term))
+        );
 
         const applySearch = (query) => {
             const queryContext = buildNavboostContext(query);
@@ -1818,7 +1823,7 @@
                 if (indexPayload && candidates) {
                     const docId = getRecordSearchId(record);
                     if (!candidates.has(docId)) return false;
-                    return matchesQueryTerms(record, terms, indexPayload, docId);
+                    return matchesQueryTerms(record, terms);
                 }
                 return matchesQueryTerms(record, terms);
             });
