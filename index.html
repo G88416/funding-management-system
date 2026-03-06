@@ -457,15 +457,19 @@
             const target = document.getElementById('newTarget').value.trim();
             const website = document.getElementById('newWebsite').value.trim();
             const contacts = document.getElementById('newContacts').value.trim();
-            if (name && target) {
-                const funder = prepareFunder({ name, country, category, type, target, website, contacts });
-                funders.push(funder);
-                await persistFunder(funder);
-                renderTable(funders);
-                clearInputs();
-            } else {
+            if (!name || !target) {
                 alert('Name and Funding Target are required.');
+                return;
             }
+            if (!country || !category || !type) {
+                alert('Please select a country, category, and funder type.');
+                return;
+            }
+            const funder = prepareFunder({ name, country, category, type, target, website, contacts });
+            funders.push(funder);
+            await persistFunder(funder);
+            renderTable(funders);
+            clearInputs();
         };
 
         const editFunder = async (index) => {
@@ -504,7 +508,7 @@
             const emailAddr = contacts && contacts.includes('@')
                 ? contacts.split(/[,; ]+/).find(c => c.includes('@')) || ''
                 : '';
-            const subject = encodeURIComponent(`Funding / Partnership Inquiry: ${safeCountry} ${safeCategory}`);
+            const subject = encodeURIComponent(`Funding Inquiry for ${safeCategory} in ${safeCountry}`);
             const body = encodeURIComponent(
                 `Dear ${name} Team,\n\n` +
                 `I am reaching out regarding potential funding, grants, or CSI support.\n` +
