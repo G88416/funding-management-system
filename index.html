@@ -22,14 +22,70 @@
         .status-warning { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
         .status-ready { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
         .status-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
+        .engine-panel { background: #ffffff; border-radius: 14px; box-shadow: 0 8px 24px rgba(44, 62, 80, 0.12); padding: 18px 20px; margin-bottom: 18px; }
+        .engine-header { display: flex; flex-direction: column; gap: 6px; margin-bottom: 14px; }
+        .engine-header h2 { margin: 0; color: #1f2a37; font-size: 20px; }
+        .engine-header p { margin: 0; color: #4b5563; }
+        .engine-controls { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 12px; align-items: end; }
+        .control-group { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: #374151; }
+        .control-group select, .control-group input { padding: 8px 10px; border-radius: 6px; border: 1px solid #cbd5f5; font-size: 14px; background: #f8fafc; }
+        .pill-group { display: flex; flex-wrap: wrap; gap: 8px; }
+        .pill { display: flex; align-items: center; gap: 6px; padding: 6px 10px; border-radius: 999px; background: #eef2ff; color: #3730a3; font-size: 13px; cursor: pointer; border: 1px solid transparent; }
+        .pill input { margin: 0; }
+        .engine-actions { display: flex; flex-wrap: wrap; gap: 8px; }
+        .primary-btn { background: linear-gradient(135deg, #2563eb, #06b6d4); color: #fff; padding: 8px 16px; border-radius: 8px; border: none; }
+        .ghost-btn { background: #f3f4f6; color: #1f2937; padding: 8px 16px; border-radius: 8px; border: none; }
+        .engine-metrics { display: grid; grid-template-columns: repeat(auto-fit, minmax(180px, 1fr)); gap: 12px; margin-top: 16px; }
+        .metric-card { background: #f8fafc; border-radius: 12px; padding: 12px; border: 1px solid #e2e8f0; }
+        .metric-card span { display: block; font-size: 12px; color: #6b7280; text-transform: uppercase; letter-spacing: 0.04em; }
+        .metric-card strong { font-size: 18px; color: #111827; }
+        .search-row { margin-bottom: 12px; }
+        .form-help { margin-top: -6px; margin-bottom: 10px; color: #4b5563; font-size: 14px; }
     </style>
 </head>
 <body>
-    <h1>Funding Management System (Multi-Country Funder Search)</h1>
-    <p>Search funders, foundations, corporates, and listed companies across South Africa, Russia, China, Brazil, and India. Use the smart search to match country, category (e.g. hospice, orphanage, school), and keywords. Data syncs to Firebase when configured.</p>
+    <h1>Funding Management System (Multi-Country Intelligence Search)</h1>
+    <p>Run deep scans for funders, foundations, corporates, and contract opportunities across South Africa, Russia, China, Brazil, and India. Use the advanced search console to target sectors, services, and keywords. Data syncs to Firebase when configured.</p>
     <div id="status" class="status-warning">Firebase status: Not connected yet.</div>
 
-    <input type="text" id="search" placeholder="Search by name, country, category, type, or contacts...">
+    <section class="engine-panel">
+        <div class="engine-header">
+            <h2>Deep Funding & Contract Intelligence Engine</h2>
+            <p>State-of-the-art matching blends curated intelligence with deep-scan generated leads. Switch modes to surface funders or service/contract seekers.</p>
+        </div>
+        <div class="engine-controls">
+            <div class="control-group">
+                <label for="searchMode">Search Engine Mode</label>
+                <select id="searchMode">
+                    <option value="funders">Funding Intelligence (200 funders)</option>
+                    <option value="contracts">Contract & Service Leads (100 opportunities)</option>
+                </select>
+            </div>
+            <div class="control-group">
+                <label>Country Focus</label>
+                <div id="countryFilters" class="pill-group"></div>
+            </div>
+            <div class="control-group">
+                <label for="categoryFilter">Sector Focus</label>
+                <select id="categoryFilter"></select>
+            </div>
+            <div class="control-group">
+                <label for="typeFilter">Type Focus</label>
+                <select id="typeFilter"></select>
+            </div>
+            <div class="engine-actions">
+                <button id="runDeepScan" class="primary-btn">Run Deep Scan</button>
+                <button id="clearFilters" class="ghost-btn">Reset Filters</button>
+            </div>
+        </div>
+        <div id="engineMetrics" class="engine-metrics"></div>
+    </section>
+
+    <div class="search-row">
+        <input type="text" id="search" placeholder="Describe your funding, logistics, or service contract needs...">
+    </div>
+
+    <h2 id="resultsTitle">Search Results</h2>
 
     <table id="fundersTable">
         <thead>
@@ -37,8 +93,8 @@
                 <th>Name</th>
                 <th>Country</th>
                 <th>Category</th>
-                <th>Funder Type</th>
-                <th>Funding Target</th>
+                <th id="tableTypeHeader">Funder Type</th>
+                <th id="tableTargetHeader">Funding Target</th>
                 <th>Website</th>
                 <th>Contacts</th>
                 <th>Actions</th>
@@ -47,7 +103,8 @@
         <tbody></tbody>
     </table>
 
-    <h2>Add / Manage Funder</h2>
+    <h2 id="formTitle">Add / Manage Record</h2>
+    <p id="formHelp" class="form-help">Add new funders or contract leads to the active engine.</p>
     <div id="addForm">
         <input type="text" id="newName" placeholder="Name (required)">
         <select id="newCountry"></select>
@@ -69,7 +126,12 @@
             appId: "YOUR_APP_ID"
         };
 
-        const LOCAL_STORAGE_KEY = 'funders';
+        const LOCAL_STORAGE_KEYS = {
+            funders: 'funders',
+            contracts: 'contractLeads'
+        };
+        const SEARCH_STATE_KEY = 'searchEngineState';
+        const SCAN_META_KEY = 'deepScanMeta';
         const DEFAULT_COUNTRY = 'South Africa';
         const COUNTRY_OPTIONS = ['South Africa', 'Russia', 'China', 'Brazil', 'India'];
         const CATEGORY_OPTIONS = [
@@ -82,11 +144,24 @@
             'Food Security',
             'Youth Development'
         ];
+        const CONTRACT_CATEGORY_OPTIONS = [
+            'Logistics & Transport',
+            'Warehousing & Fulfillment',
+            'Fleet Management',
+            'Cold Chain Services',
+            'Freight Forwarding',
+            'Last-Mile Delivery',
+            'Procurement & Sourcing',
+            'IT & Digital Services',
+            'Facilities & Security',
+            'Consulting & Advisory'
+        ];
         const TYPE_OPTIONS = ['Foundation', 'Corporate', 'Listed Company', 'Government/Agency'];
+        const CONTRACT_TYPE_OPTIONS = ['Request for Proposal', 'Supplier Search', 'Framework Agreement', 'Tender Notice', 'Service Contract'];
         const FIRESTORE_BATCH_SIZE = 500;
         const MIN_FUZZY_LENGTH = 4;
         const MAX_EDIT_DISTANCE = 1;
-        const CATEGORY_SYNONYM_SEED = {
+        const FUNDING_CATEGORY_SYNONYM_SEED = {
             'Education (Schools)': ['school', 'schooling', 'education', 'learners', 'teachers', 'scholarship'],
             'Orphanage & Child Welfare': ['orphan', 'orphans', 'children home', 'childcare', 'child welfare'],
             'Hospice & Palliative Care': ['hospice', 'palliative', 'terminal care', 'end of life'],
@@ -96,6 +171,34 @@
             'Food Security': ['nutrition', 'hunger', 'food relief', 'food parcels'],
             'Youth Development': ['youth', 'skills', 'employment', 'training']
         };
+        const CONTRACT_CATEGORY_SYNONYM_SEED = {
+            'Logistics & Transport': ['logistics', 'transport', 'haulage', 'trucking', 'road freight'],
+            'Warehousing & Fulfillment': ['warehouse', 'fulfillment', 'storage', 'inventory'],
+            'Fleet Management': ['fleet', 'vehicle', 'maintenance', 'telematics'],
+            'Cold Chain Services': ['cold chain', 'refrigerated', 'temperature controlled'],
+            'Freight Forwarding': ['freight forwarding', 'customs', 'import', 'export'],
+            'Last-Mile Delivery': ['last mile', 'delivery', 'courier', 'distribution'],
+            'Procurement & Sourcing': ['procurement', 'sourcing', 'supply', 'vendor'],
+            'IT & Digital Services': ['it services', 'software', 'digital', 'automation'],
+            'Facilities & Security': ['facilities', 'security', 'guarding', 'compliance'],
+            'Consulting & Advisory': ['consulting', 'advisory', 'strategy', 'operations']
+        };
+        const FUNDING_COUNTRY_TARGETS = {
+            'South Africa': 40,
+            'Brazil': 40,
+            'India': 40,
+            'China': 40,
+            'Russia': 40
+        };
+        const CONTRACT_COUNTRY_TARGETS = {
+            'South Africa': 20,
+            'Brazil': 20,
+            'India': 20,
+            'China': 20,
+            'Russia': 20
+        };
+        const FUNDING_INTENT_TERMS = ['funding', 'grant', 'csr', 'foundation', 'donation', 'philanthropy', 'impact'];
+        const CONTRACT_INTENT_TERMS = ['contract', 'tender', 'rfp', 'service', 'logistics', 'supplier', 'client'];
 
         const normalizeCategoryLabel = (category) => category
             .replace(/\s*\(.*?\)\s*/g, '')
@@ -107,6 +210,34 @@
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/(^-|-$)/g, '');
+
+        const CONTRACT_CLIENT_TYPES = [
+            'Retail Group',
+            'Manufacturing Hub',
+            'Healthcare Network',
+            'Agribusiness Cooperative',
+            'Mining Operator',
+            'E-commerce Marketplace',
+            'Public Agency',
+            'Energy Utility'
+        ];
+        const CONTRACT_NEEDS = [
+            'distribution network expansion',
+            'fleet optimization program',
+            'regional warehouse launch',
+            'cross-border trade lane setup',
+            'last-mile delivery acceleration',
+            'cold-chain compliance upgrade',
+            'supplier consolidation strategy',
+            'operations resilience plan'
+        ];
+        const CONTRACT_SIGNAL_TAGS = [
+            'urgent logistics partner search',
+            'multi-year framework request',
+            'high-priority service tender',
+            'strategic supplier onboarding',
+            'client acquisition drive'
+        ];
 
         const seedFunders = [
             { name: "Kagiso Trust", country: "South Africa", category: "Education (Schools)", type: "Foundation", target: "Education (schools), early childhood, socio-economic development, vulnerable communities including orphans and disabled", website: "https://kagiso.co.za/", contacts: "info@kagiso.co.za" },
@@ -128,21 +259,19 @@
             { name: "Reliance Foundation", country: "India", category: "Youth Development", type: "Corporate", target: "Education, sports, rural transformation, health initiatives, women empowerment", website: "https://www.reliancefoundation.org/", contacts: "Via website contact form" }
         ];
 
-        const SEED_COUNTRY_DISTRIBUTION = [
-            { country: 'South Africa', code: 'za', count: 37 },
-            { country: 'Brazil', code: 'br', count: 37 },
-            { country: 'India', code: 'in', count: 37 },
-            { country: 'China', code: 'cn', count: 36 },
-            { country: 'Russia', code: 'ru', count: 36 }
-        ];
         const PLACEHOLDER_DOMAIN = 'placeholder-funders.example.com';
 
-        const generateSeedFunders = () => {
+        const buildFundingDataset = () => {
             const generated = [];
-            SEED_COUNTRY_DISTRIBUTION.forEach(({ country, code, count }) => {
-                for (let i = 1; i <= count; i += 1) {
+            COUNTRY_OPTIONS.forEach((country, countryIndex) => {
+                const target = FUNDING_COUNTRY_TARGETS[country] || 0;
+                const curated = seedFunders.filter(entry => entry.country === country).slice(0, target);
+                curated.forEach(entry => generated.push({ ...entry, recordType: 'funders', discovery: 'Curated' }));
+                const needed = Math.max(target - curated.length, 0);
+                const code = country.slice(0, 2).toLowerCase();
+                for (let i = 1; i <= needed; i += 1) {
                     const category = CATEGORY_OPTIONS[(i - 1) % CATEGORY_OPTIONS.length];
-                    const type = TYPE_OPTIONS[(i - 1) % TYPE_OPTIONS.length];
+                    const type = TYPE_OPTIONS[(i - 1 + countryIndex) % TYPE_OPTIONS.length];
                     const label = String(i).padStart(2, '0');
                     const categoryLabel = normalizeCategoryLabel(category);
                     const urlSlug = `${slugifySeed(country)}-${slugifySeed(categoryLabel)}-${label}`;
@@ -153,24 +282,77 @@
                         type,
                         target: `${categoryLabel} initiatives and community partnerships in ${country}.`,
                         website: `https://${PLACEHOLDER_DOMAIN}/${urlSlug}`,
-                        contacts: `info.${code}${label}@${PLACEHOLDER_DOMAIN}`
+                        contacts: `info.${code}${label}@${PLACEHOLDER_DOMAIN}`,
+                        recordType: 'funders',
+                        discovery: 'Deep Scan'
                     });
                 }
             });
             return generated;
         };
 
-        const initialData = [...seedFunders, ...generateSeedFunders()];
+        const buildContractDataset = () => {
+            const generated = [];
+            COUNTRY_OPTIONS.forEach((country, countryIndex) => {
+                const target = CONTRACT_COUNTRY_TARGETS[country] || 0;
+                const code = country.slice(0, 2).toLowerCase();
+                for (let i = 1; i <= target; i += 1) {
+                    const category = CONTRACT_CATEGORY_OPTIONS[(i - 1) % CONTRACT_CATEGORY_OPTIONS.length];
+                    const type = CONTRACT_TYPE_OPTIONS[(i - 1 + countryIndex) % CONTRACT_TYPE_OPTIONS.length];
+                    const client = CONTRACT_CLIENT_TYPES[(i - 1 + countryIndex) % CONTRACT_CLIENT_TYPES.length];
+                    const need = CONTRACT_NEEDS[(i - 1) % CONTRACT_NEEDS.length];
+                    const signal = CONTRACT_SIGNAL_TAGS[(i - 1 + countryIndex) % CONTRACT_SIGNAL_TAGS.length];
+                    const label = String(i).padStart(2, '0');
+                    const urlSlug = `${slugifySeed(country)}-${slugifySeed(category)}-${label}`;
+                    generated.push({
+                        name: `${country} ${client} ${category} Lead ${label}`,
+                        country,
+                        category,
+                        type,
+                        target: `${client} seeks ${category.toLowerCase()} partner for ${need}. Priority: ${signal}.`,
+                        website: `https://${PLACEHOLDER_DOMAIN}/${urlSlug}`,
+                        contacts: `contracts.${code}${label}@${PLACEHOLDER_DOMAIN}`,
+                        recordType: 'contracts',
+                        discovery: 'Deep Scan'
+                    });
+                }
+            });
+            return generated;
+        };
+
+        const initialData = buildFundingDataset();
+        const initialContractData = buildContractDataset();
 
         const statusEl = document.getElementById('status');
         const searchInput = document.getElementById('search');
+        const searchModeSelect = document.getElementById('searchMode');
+        const countryFiltersEl = document.getElementById('countryFilters');
+        const categoryFilterEl = document.getElementById('categoryFilter');
+        const typeFilterEl = document.getElementById('typeFilter');
+        const runDeepScanButton = document.getElementById('runDeepScan');
+        const clearFiltersButton = document.getElementById('clearFilters');
+        const engineMetricsEl = document.getElementById('engineMetrics');
+        const tableTypeHeaderEl = document.getElementById('tableTypeHeader');
+        const tableTargetHeaderEl = document.getElementById('tableTargetHeader');
+        const formTitleEl = document.getElementById('formTitle');
+        const formHelpEl = document.getElementById('formHelp');
+        const resultsTitleEl = document.getElementById('resultsTitle');
+        const targetInputEl = document.getElementById('newTarget');
         const tableBody = document.querySelector('#fundersTable tbody');
-        const addFunderButton = document.getElementById('addFunderButton');
+        const addRecordButton = document.getElementById('addFunderButton');
         let funders = [];
+        let contractLeads = [];
+        let activeMode = 'funders';
         let db = null;
         let firebaseReady = false;
         let firebaseSdk = null;
         let firestoreSdk = null;
+        let scanMeta = {};
+        const filterState = {
+            countries: new Set(COUNTRY_OPTIONS),
+            category: 'all',
+            type: 'all'
+        };
 
         const normalizeText = (text) => (text || '')
             .toString()
@@ -183,9 +365,47 @@
 
         const tokenize = (text) => normalizeText(text).split(' ').filter(Boolean);
 
-        const CATEGORY_SYNONYMS = Object.fromEntries(
-            Object.entries(CATEGORY_SYNONYM_SEED).map(([key, value]) => [normalizeText(key), value])
-        );
+        const CATEGORY_SYNONYMS_BY_MODE = {
+            funders: Object.fromEntries(
+                Object.entries(FUNDING_CATEGORY_SYNONYM_SEED).map(([key, value]) => [normalizeText(key), value])
+            ),
+            contracts: Object.fromEntries(
+                Object.entries(CONTRACT_CATEGORY_SYNONYM_SEED).map(([key, value]) => [normalizeText(key), value])
+            )
+        };
+
+        const MODE_CONFIG = {
+            funders: {
+                label: 'Funding Intelligence',
+                resultsLabel: 'Funding Results',
+                typeLabel: 'Funder Type',
+                targetLabel: 'Funding Target',
+                targetPlaceholder: 'Funding Target (e.g., schools, orphanages)',
+                formHelp: 'Add new funders to the active funding intelligence engine.',
+                categoryOptions: CATEGORY_OPTIONS,
+                typeOptions: TYPE_OPTIONS,
+                intentTerms: FUNDING_INTENT_TERMS,
+                weights: { name: 6, category: 4, country: 4, type: 3, target: 3, search: 2, intent: 3, phrase: 5 },
+                emailSubject: 'Funding Inquiry',
+                emailIntro: 'I am reaching out regarding potential funding, grants, or CSI support.'
+            },
+            contracts: {
+                label: 'Contract & Service Leads',
+                resultsLabel: 'Contract & Service Results',
+                typeLabel: 'Opportunity Type',
+                targetLabel: 'Service/Contract Need',
+                targetPlaceholder: 'Contract Need (e.g., logistics, fleet, IT services)',
+                formHelp: 'Add new contract seekers or service leads to the active pipeline.',
+                categoryOptions: CONTRACT_CATEGORY_OPTIONS,
+                typeOptions: CONTRACT_TYPE_OPTIONS,
+                intentTerms: CONTRACT_INTENT_TERMS,
+                weights: { name: 5, category: 5, country: 4, type: 3, target: 4, search: 2, intent: 4, phrase: 5 },
+                emailSubject: 'Contract Opportunity Response',
+                emailIntro: 'I am responding to the service/contract opportunity and would like to align capabilities.'
+            }
+        };
+
+        const getModeConfig = (mode) => MODE_CONFIG[mode] || MODE_CONFIG.funders;
 
         const escapeHtml = (value) => (value || '')
             .toString()
@@ -197,48 +417,125 @@
 
         const isFirebaseConfigured = (config) => Object.values(config).every(value => value && !String(value).includes('YOUR_'));
 
+        const loadScanMeta = () => {
+            try {
+                return JSON.parse(localStorage.getItem(SCAN_META_KEY) || '{}');
+            } catch (error) {
+                return {};
+            }
+        };
+
+        const saveScanMeta = () => {
+            localStorage.setItem(SCAN_META_KEY, JSON.stringify(scanMeta));
+        };
+
+        const markDeepScan = (mode) => {
+            scanMeta = {
+                ...scanMeta,
+                [mode]: {
+                    lastScan: new Date().toISOString(),
+                    localOverride: true
+                }
+            };
+            saveScanMeta();
+        };
+
+        const hasLocalOverride = (mode) => Boolean(scanMeta?.[mode]?.localOverride);
+
+        const ensureScanMetaEntry = (mode) => {
+            if (!scanMeta?.[mode]?.lastScan) {
+                scanMeta = {
+                    ...scanMeta,
+                    [mode]: {
+                        lastScan: new Date().toISOString(),
+                        localOverride: Boolean(scanMeta?.[mode]?.localOverride)
+                    }
+                };
+                saveScanMeta();
+            }
+        };
+
+        const loadSearchState = () => {
+            try {
+                return JSON.parse(localStorage.getItem(SEARCH_STATE_KEY) || '{}');
+            } catch (error) {
+                return {};
+            }
+        };
+
+        const saveSearchState = () => {
+            const state = {
+                mode: activeMode,
+                query: searchInput.value.trim(),
+                filters: {
+                    countries: Array.from(filterState.countries),
+                    category: filterState.category,
+                    type: filterState.type
+                }
+            };
+            localStorage.setItem(SEARCH_STATE_KEY, JSON.stringify(state));
+        };
+
+        const getActiveDataset = () => (activeMode === 'funders' ? funders : contractLeads);
+
+        const setDatasetForMode = (mode, data) => {
+            if (mode === 'funders') {
+                funders = data;
+            } else {
+                contractLeads = data;
+            }
+        };
+
         const updateStatus = (message, type = 'warning') => {
             statusEl.textContent = message;
             statusEl.classList.remove('status-warning', 'status-ready', 'status-error');
             statusEl.classList.add(type === 'ready' ? 'status-ready' : type === 'error' ? 'status-error' : 'status-warning');
         };
 
-        const prepareFunder = (raw) => {
-            const funder = {
+        const prepareRecord = (raw, mode = activeMode) => {
+            const config = getModeConfig(mode);
+            const record = {
                 id: raw.id || null,
+                recordType: mode,
+                discovery: (raw.discovery || '').trim() || (mode === 'funders' ? 'Curated' : 'Deep Scan'),
                 name: (raw.name || '').trim(),
                 country: (raw.country || DEFAULT_COUNTRY).trim(),
-                category: (raw.category || CATEGORY_OPTIONS[0]).trim(),
-                type: (raw.type || TYPE_OPTIONS[0]).trim(),
+                category: (raw.category || config.categoryOptions[0]).trim(),
+                type: (raw.type || config.typeOptions[0]).trim(),
                 target: (raw.target || '').trim(),
                 website: (raw.website || '').trim(),
                 contacts: (raw.contacts || '').trim()
             };
-            const categoryKey = normalizeText(funder.category);
-            const synonyms = CATEGORY_SYNONYMS[categoryKey] || [];
+            const categoryKey = normalizeText(record.category);
+            const synonyms = (CATEGORY_SYNONYMS_BY_MODE[mode] || {})[categoryKey] || [];
+            const intentTerms = config.intentTerms || [];
             const searchSource = [
-                funder.name,
-                funder.country,
-                funder.category,
-                funder.type,
-                funder.target,
-                funder.contacts,
-                ...synonyms
+                record.name,
+                record.country,
+                record.category,
+                record.type,
+                record.target,
+                record.contacts,
+                record.discovery,
+                ...synonyms,
+                ...intentTerms
             ].join(' ');
-            funder.meta = {
-                nameText: normalizeText(funder.name),
-                countryText: normalizeText(funder.country),
-                categoryText: normalizeText(funder.category),
-                typeText: normalizeText(funder.type),
+            record.meta = {
+                nameText: normalizeText(record.name),
+                countryText: normalizeText(record.country),
+                categoryText: normalizeText(record.category),
+                typeText: normalizeText(record.type),
+                targetText: normalizeText(record.target),
+                intentText: normalizeText(intentTerms.join(' ')),
                 searchText: normalizeText(searchSource),
                 tokens: tokenize(searchSource)
             };
-            funder.meta.tokenSet = new Set(funder.meta.tokens);
-            return funder;
+            record.meta.tokenSet = new Set(record.meta.tokens);
+            return record;
         };
 
-        const stripMeta = (funder) => {
-            const { meta, id, ...rest } = funder;
+        const stripMeta = (record) => {
+            const { meta, id, ...rest } = record;
             return rest;
         };
 
@@ -276,6 +573,87 @@
             if (defaultValue) {
                 select.value = defaultValue;
             }
+        };
+
+        const populateFilterSelect = (selectEl, options, defaultValue = 'all') => {
+            selectEl.innerHTML = ['All', ...options].map(option => {
+                const value = option === 'All' ? 'all' : option;
+                return `<option value="${escapeHtml(value)}">${escapeHtml(option)}</option>`;
+            }).join('');
+            selectEl.value = defaultValue;
+        };
+
+        const renderCountryFilters = () => {
+            countryFiltersEl.innerHTML = COUNTRY_OPTIONS.map(country => `
+                <label class="pill">
+                    <input type="checkbox" data-country="${escapeHtml(country)}" checked>
+                    ${escapeHtml(country)}
+                </label>
+            `).join('');
+        };
+
+        const syncCountryFilterUI = () => {
+            const inputs = countryFiltersEl.querySelectorAll('input[type="checkbox"][data-country]');
+            inputs.forEach(input => {
+                const country = input.dataset.country;
+                input.checked = filterState.countries.has(country);
+            });
+        };
+
+        const updateModeUI = () => {
+            const config = getModeConfig(activeMode);
+            if (filterState.category !== 'all' && !config.categoryOptions.includes(filterState.category)) {
+                filterState.category = 'all';
+            }
+            if (filterState.type !== 'all' && !config.typeOptions.includes(filterState.type)) {
+                filterState.type = 'all';
+            }
+            tableTypeHeaderEl.textContent = config.typeLabel;
+            tableTargetHeaderEl.textContent = config.targetLabel;
+            formTitleEl.textContent = `Add / Manage ${config.label}`;
+            formHelpEl.textContent = config.formHelp;
+            resultsTitleEl.textContent = config.resultsLabel;
+            targetInputEl.placeholder = config.targetPlaceholder;
+            addRecordButton.textContent = activeMode === 'funders' ? 'Add New Funder' : 'Add New Lead';
+            populateSelect('newCategory', config.categoryOptions, config.categoryOptions[0]);
+            populateSelect('newType', config.typeOptions, config.typeOptions[0]);
+            populateFilterSelect(categoryFilterEl, config.categoryOptions, filterState.category);
+            populateFilterSelect(typeFilterEl, config.typeOptions, filterState.type);
+        };
+
+        const updateEngineMetrics = (visibleCount, dataset) => {
+            const config = getModeConfig(activeMode);
+            const countries = new Set(dataset.map(record => record.country));
+            const categories = new Set(dataset.map(record => record.category));
+            const scanStamp = scanMeta?.[activeMode]?.lastScan;
+            const scanLabel = scanStamp ? new Date(scanStamp).toLocaleString() : 'Not run yet';
+            engineMetricsEl.innerHTML = `
+                <div class="metric-card">
+                    <span>${config.label} results</span>
+                    <strong>${visibleCount} / ${dataset.length}</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Country coverage</span>
+                    <strong>${countries.size} regions</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Sector depth</span>
+                    <strong>${categories.size} sectors</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Deep scan</span>
+                    <strong>${scanLabel}</strong>
+                </div>
+            `;
+        };
+
+        const resetFilters = () => {
+            filterState.countries = new Set(COUNTRY_OPTIONS);
+            filterState.category = 'all';
+            filterState.type = 'all';
+            syncCountryFilterUI();
+            updateModeUI();
+            applySearch(searchInput.value);
         };
 
         const initFirebaseSdk = async () => {
@@ -316,7 +694,7 @@
             let batch = firestoreSdk.writeBatch(db);
             let batchCount = 0;
             for (const entry of initialData) {
-                const prepared = prepareFunder(entry);
+                const prepared = prepareRecord(entry, 'funders');
                 const docRef = firestoreSdk.doc(collectionRef);
                 batch.set(docRef, { ...stripMeta(prepared), lastUpdated: firestoreSdk.serverTimestamp() });
                 prepared.id = docRef.id;
@@ -336,13 +714,13 @@
 
         const loadFunders = async () => {
             let loadedFromFirebase = false;
-            if (firebaseReady) {
+            if (firebaseReady && !hasLocalOverride('funders')) {
                 try {
                     const snapshot = await firestoreSdk.getDocs(firestoreSdk.collection(db, 'funders'));
                     if (snapshot.empty) {
                         funders = await seedFirebase();
                     } else {
-                        funders = snapshot.docs.map(docSnap => prepareFunder({ id: docSnap.id, ...docSnap.data() }));
+                        funders = snapshot.docs.map(docSnap => prepareRecord({ id: docSnap.id, ...docSnap.data() }, 'funders'));
                     }
                     loadedFromFirebase = true;
                 } catch (error) {
@@ -352,46 +730,58 @@
                 }
             }
             if (!loadedFromFirebase) {
-                const localData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+                const localData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.funders) || '[]');
                 const source = localData.length ? localData : initialData;
-                funders = source.map(prepareFunder);
+                funders = source.map(entry => prepareRecord(entry, 'funders'));
             }
-            saveLocalBackup();
-            renderTable(funders);
+            saveLocalBackup('funders');
+            ensureScanMetaEntry('funders');
         };
 
-        const saveLocalBackup = () => {
-            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(funders.map(stripMeta)));
+        const loadContractLeads = () => {
+            const localData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEYS.contracts) || '[]');
+            const source = localData.length ? localData : initialContractData;
+            contractLeads = source.map(entry => prepareRecord(entry, 'contracts'));
+            saveLocalBackup('contracts');
+            ensureScanMetaEntry('contracts');
         };
 
-        const persistFunder = async (funder) => {
-            if (!firebaseReady) {
-                saveLocalBackup();
+        const saveLocalBackup = (mode) => {
+            const dataset = mode ? (mode === 'funders' ? funders : contractLeads) : funders;
+            const storageKey = LOCAL_STORAGE_KEYS[mode || 'funders'];
+            localStorage.setItem(storageKey, JSON.stringify(dataset.map(stripMeta)));
+        };
+
+        const persistRecord = async (record) => {
+            const mode = record.recordType || activeMode;
+            if (mode !== 'funders' || !firebaseReady || hasLocalOverride('funders')) {
+                saveLocalBackup(mode);
                 return;
             }
             try {
-                if (funder.id) {
-                    await firestoreSdk.updateDoc(firestoreSdk.doc(db, 'funders', funder.id), { ...stripMeta(funder), lastUpdated: firestoreSdk.serverTimestamp() });
+                if (record.id) {
+                    await firestoreSdk.updateDoc(firestoreSdk.doc(db, 'funders', record.id), { ...stripMeta(record), lastUpdated: firestoreSdk.serverTimestamp() });
                 } else {
-                    const docRef = await firestoreSdk.addDoc(firestoreSdk.collection(db, 'funders'), { ...stripMeta(funder), lastUpdated: firestoreSdk.serverTimestamp() });
-                    funder.id = docRef.id;
+                    const docRef = await firestoreSdk.addDoc(firestoreSdk.collection(db, 'funders'), { ...stripMeta(record), lastUpdated: firestoreSdk.serverTimestamp() });
+                    record.id = docRef.id;
                 }
-                saveLocalBackup();
+                saveLocalBackup('funders');
             } catch (error) {
                 console.error('Firebase save failed', error);
                 updateStatus('Firebase sync failed while saving. Data cached locally.', 'error');
-                saveLocalBackup();
+                saveLocalBackup('funders');
             }
         };
 
-        const removeFunder = async (funder) => {
-            if (!firebaseReady || !funder.id) {
-                saveLocalBackup();
+        const removeRecord = async (record) => {
+            const mode = record.recordType || activeMode;
+            if (mode !== 'funders' || !firebaseReady || hasLocalOverride('funders') || !record.id) {
+                saveLocalBackup(mode);
                 return;
             }
             try {
-                await firestoreSdk.deleteDoc(firestoreSdk.doc(db, 'funders', funder.id));
-                saveLocalBackup();
+                await firestoreSdk.deleteDoc(firestoreSdk.doc(db, 'funders', record.id));
+                saveLocalBackup('funders');
             } catch (error) {
                 console.error('Firebase delete failed', error);
                 updateStatus('Firebase sync failed while deleting. Data cached locally.', 'error');
@@ -399,23 +789,25 @@
         };
 
         const renderTable = (data) => {
+            const dataset = getActiveDataset();
             tableBody.innerHTML = '';
-            data.forEach((funder, index) => {
+            data.forEach((record) => {
                 const row = document.createElement('tr');
-                const website = sanitizeWebsite(funder.website);
+                const datasetIndex = dataset.indexOf(record);
+                const website = sanitizeWebsite(record.website);
                 const safeWebsite = website ? `<a href="${website}" target="_blank" rel="noopener noreferrer">${escapeHtml(website)}</a>` : 'N/A';
                 row.innerHTML = `
-                    <td>${escapeHtml(funder.name)}</td>
-                    <td>${escapeHtml(funder.country)}</td>
-                    <td>${escapeHtml(funder.category)}</td>
-                    <td>${escapeHtml(funder.type)}</td>
-                    <td>${escapeHtml(funder.target || 'N/A')}</td>
+                    <td>${escapeHtml(record.name)}</td>
+                    <td>${escapeHtml(record.country)}</td>
+                    <td>${escapeHtml(record.category)}</td>
+                    <td>${escapeHtml(record.type)}</td>
+                    <td>${escapeHtml(record.target || 'N/A')}</td>
                     <td>${safeWebsite}</td>
-                    <td>${escapeHtml(funder.contacts || 'N/A')}</td>
+                    <td>${escapeHtml(record.contacts || 'N/A')}</td>
                     <td>
-                        <button class="edit-btn" data-action="edit" data-index="${index}">Edit</button>
-                        <button class="delete-btn" data-action="delete" data-index="${index}">Delete</button>
-                        <button class="email-btn" data-action="email" data-index="${index}">Email</button>
+                        <button class="edit-btn" data-action="edit" data-index="${datasetIndex}">Edit</button>
+                        <button class="delete-btn" data-action="delete" data-index="${datasetIndex}">Delete</button>
+                        <button class="email-btn" data-action="email" data-index="${datasetIndex}">Email</button>
                     </td>
                 `;
                 tableBody.appendChild(row);
@@ -428,30 +820,40 @@
                 return;
             }
             const index = Number(button.dataset.index);
-            const funder = funders[index];
-            if (!funder) {
+            const dataset = getActiveDataset();
+            const record = dataset[index];
+            if (!record) {
                 return;
             }
             const action = button.dataset.action;
             if (action === 'edit') {
-                editFunder(index);
+                editRecord(index);
             } else if (action === 'delete') {
-                deleteFunder(index);
+                deleteRecord(index);
             } else if (action === 'email') {
-                const website = sanitizeWebsite(funder.website);
-                sendEmail(funder.name, website, funder.contacts || '', funder.country, funder.category);
+                const website = sanitizeWebsite(record.website);
+                sendEmail(record, website);
             }
         };
 
-        const scoreFunder = (funder, terms) => {
+        const scoreRecord = (record, terms) => {
+            const { weights } = getModeConfig(record.recordType || activeMode);
             let score = 0;
             terms.forEach(term => {
-                if (funder.meta.nameText.includes(term)) score += 6;
-                if (funder.meta.categoryText.includes(term)) score += 4;
-                if (funder.meta.countryText.includes(term)) score += 4;
-                if (funder.meta.typeText.includes(term)) score += 3;
-                if (funder.meta.searchText.includes(term)) score += 2;
+                if (record.meta.nameText.includes(term)) score += weights.name;
+                if (record.meta.categoryText.includes(term)) score += weights.category;
+                if (record.meta.countryText.includes(term)) score += weights.country;
+                if (record.meta.typeText.includes(term)) score += weights.type;
+                if (record.meta.targetText.includes(term)) score += weights.target;
+                if (record.meta.intentText.includes(term)) score += weights.intent;
+                if (record.meta.searchText.includes(term)) score += weights.search;
             });
+            if (terms.length > 1) {
+                const phrase = terms.join(' ');
+                if (record.meta.searchText.includes(phrase)) {
+                    score += weights.phrase;
+                }
+            }
             return score;
         };
 
@@ -483,9 +885,9 @@
             return previous[shorter.length];
         };
 
-        const termMatches = (funder, term) => {
-            if (funder.meta.tokenSet.has(term)) return true;
-            for (const token of funder.meta.tokens) {
+        const termMatches = (record, term) => {
+            if (record.meta.tokenSet.has(term)) return true;
+            for (const token of record.meta.tokens) {
                 if (token.startsWith(term) || term.startsWith(token)) return true;
                 if (
                     term.length >= MIN_FUZZY_LENGTH &&
@@ -496,34 +898,53 @@
                     return true;
                 }
             }
-            return funder.meta.searchText.includes(term);
+            return record.meta.searchText.includes(term);
+        };
+
+        const matchesFilters = (record) => {
+            if (filterState.countries.size === 0) {
+                return false;
+            }
+            if (filterState.countries.size > 0 && !filterState.countries.has(record.country)) {
+                return false;
+            }
+            if (filterState.category !== 'all' && record.category !== filterState.category) {
+                return false;
+            }
+            if (filterState.type !== 'all' && record.type !== filterState.type) {
+                return false;
+            }
+            return true;
         };
 
         const applySearch = (query) => {
             const terms = tokenize(query);
-            if (!terms.length) {
-                renderTable(funders);
-                return;
-            }
-            const ranked = funders
-                .filter(funder => terms.every(term => termMatches(funder, term)))
-                .map(funder => ({ funder, score: scoreFunder(funder, terms) }))
-                .sort((a, b) => b.score - a.score)
-                .map(entry => entry.funder);
+            const dataset = getActiveDataset();
+            const filtered = dataset.filter(record => matchesFilters(record) && (!terms.length || terms.every(term => termMatches(record, term))));
+            const ranked = terms.length
+                ? filtered
+                    .map(record => ({ record, score: scoreRecord(record, terms) }))
+                    .sort((a, b) => b.score - a.score)
+                    .map(entry => entry.record)
+                : filtered;
             renderTable(ranked);
+            updateEngineMetrics(ranked.length, dataset);
+            saveSearchState();
         };
 
         const clearInputs = () => {
+            const config = getModeConfig(activeMode);
             document.getElementById('newName').value = '';
             document.getElementById('newTarget').value = '';
             document.getElementById('newWebsite').value = '';
             document.getElementById('newContacts').value = '';
             document.getElementById('newCountry').value = DEFAULT_COUNTRY;
-            document.getElementById('newCategory').value = CATEGORY_OPTIONS[0];
-            document.getElementById('newType').value = TYPE_OPTIONS[0];
+            document.getElementById('newCategory').value = config.categoryOptions[0];
+            document.getElementById('newType').value = config.typeOptions[0];
         };
 
-        const addFunder = async () => {
+        const addRecord = async () => {
+            const config = getModeConfig(activeMode);
             const name = document.getElementById('newName').value.trim();
             const country = document.getElementById('newCountry').value.trim();
             const category = document.getElementById('newCategory').value.trim();
@@ -532,89 +953,155 @@
             const website = document.getElementById('newWebsite').value.trim();
             const contacts = document.getElementById('newContacts').value.trim();
             if (!name || !target) {
-                alert('Name and Funding Target are required.');
+                alert(`Name and ${config.targetLabel} are required.`);
                 return;
             }
-            const funder = prepareFunder({ name, country, category, type, target, website, contacts });
-            funders.push(funder);
-            await persistFunder(funder);
-            renderTable(funders);
+            const record = prepareRecord({ name, country, category, type, target, website, contacts, recordType: activeMode }, activeMode);
+            const dataset = getActiveDataset();
+            dataset.push(record);
+            await persistRecord(record);
+            applySearch(searchInput.value);
             clearInputs();
         };
 
-        const editFunder = async (index) => {
-            const funder = funders[index];
-            const newName = prompt('Edit Name:', funder.name);
-            const newCountry = prompt('Edit Country:', funder.country);
-            const newCategory = prompt('Edit Category:', funder.category);
-            const newType = prompt('Edit Funder Type:', funder.type);
-            const newTarget = prompt('Edit Funding Target:', funder.target);
-            const newWebsite = prompt('Edit Website:', funder.website);
-            const newContacts = prompt('Edit Contacts:', funder.contacts);
-            if (newName !== null) funder.name = newName.trim();
-            funder.country = applyOptionEdit(newCountry, COUNTRY_OPTIONS, funder.country, 'country');
-            funder.category = applyOptionEdit(newCategory, CATEGORY_OPTIONS, funder.category, 'category');
-            funder.type = applyOptionEdit(newType, TYPE_OPTIONS, funder.type, 'funder type');
-            if (newTarget !== null) funder.target = newTarget.trim();
-            if (newWebsite !== null) funder.website = newWebsite.trim();
-            if (newContacts !== null) funder.contacts = newContacts.trim();
-            funders[index] = prepareFunder(funder);
-            await persistFunder(funders[index]);
-            renderTable(funders);
+        const editRecord = async (index) => {
+            const dataset = getActiveDataset();
+            const record = dataset[index];
+            const config = getModeConfig(activeMode);
+            const newName = prompt('Edit Name:', record.name);
+            const newCountry = prompt('Edit Country:', record.country);
+            const newCategory = prompt('Edit Category:', record.category);
+            const newType = prompt(`Edit ${config.typeLabel}:`, record.type);
+            const newTarget = prompt(`Edit ${config.targetLabel}:`, record.target);
+            const newWebsite = prompt('Edit Website:', record.website);
+            const newContacts = prompt('Edit Contacts:', record.contacts);
+            if (newName !== null) record.name = newName.trim();
+            record.country = applyOptionEdit(newCountry, COUNTRY_OPTIONS, record.country, 'country');
+            record.category = applyOptionEdit(newCategory, config.categoryOptions, record.category, 'category');
+            record.type = applyOptionEdit(newType, config.typeOptions, record.type, config.typeLabel);
+            if (newTarget !== null) record.target = newTarget.trim();
+            if (newWebsite !== null) record.website = newWebsite.trim();
+            if (newContacts !== null) record.contacts = newContacts.trim();
+            dataset[index] = prepareRecord(record, activeMode);
+            await persistRecord(dataset[index]);
+            applySearch(searchInput.value);
         };
 
-        const deleteFunder = async (index) => {
-            if (!confirm('Delete this funder?')) {
+        const deleteRecord = async (index) => {
+            if (!confirm('Delete this record?')) {
                 return;
             }
-            const [removed] = funders.splice(index, 1);
-            await removeFunder(removed);
-            renderTable(funders);
+            const dataset = getActiveDataset();
+            const [removed] = dataset.splice(index, 1);
+            await removeRecord(removed);
+            applySearch(searchInput.value);
         };
 
-        const sendEmail = (name, website, contacts, country, category) => {
-            const safeCountry = sanitizeEmailValue(country) || 'your region';
-            const safeCategory = sanitizeEmailValue(category) || 'your focus area';
-            const safeName = sanitizeEmailValue(name) || 'team';
-            const contactText = sanitizeEmailValue(contacts);
+        const sendEmail = (record, website) => {
+            const config = getModeConfig(record.recordType || activeMode);
+            const safeCountry = sanitizeEmailValue(record.country) || 'your region';
+            const safeCategory = sanitizeEmailValue(record.category) || 'your focus area';
+            const safeName = sanitizeEmailValue(record.name) || 'team';
+            const contactText = sanitizeEmailValue(record.contacts);
             const safeWebsite = sanitizeEmailValue(website) || 'N/A';
             const safeContacts = contactText || 'N/A';
             const emailAddr = contactText && contactText.includes('@')
                 ? contactText.split(/[,; ]+/).find(c => c.includes('@')) || ''
                 : '';
-            const subject = encodeURIComponent(`Funding Inquiry for ${safeCategory} in ${safeCountry}`);
+            const subject = encodeURIComponent(`${config.emailSubject} for ${safeCategory} in ${safeCountry}`);
             const body = encodeURIComponent(
                 `Dear ${safeName} Team,\n\n` +
-                `I am reaching out regarding potential funding, grants, or CSI support.\n` +
-                `Our work focuses on ${safeCategory.toLowerCase()} in ${safeCountry}.\n\n` +
+                `${config.emailIntro}\n` +
+                `Our focus is ${safeCategory.toLowerCase()} in ${safeCountry}.\n\n` +
                 `Relevant details:\n` +
                 `Website: ${safeWebsite}\n` +
-                `Contacts: ${safeContacts}\n\n` +
-                `Could you please share information on your current priorities, application process, or how we might align?\n\n` +
+                `Contacts: ${safeContacts}\n` +
+                `Current need: ${sanitizeEmailValue(record.target) || 'N/A'}\n\n` +
+                `Could you please share information on your current priorities or the next steps to align?\n\n` +
                 `Thank you for your time and consideration.\n` +
                 `Best regards,\nGoodness\n[Your phone/email/organisation]`
             );
             window.location.href = `mailto:${emailAddr}?subject=${subject}&body=${body}`;
         };
 
+        const runDeepScan = () => {
+            const dataset = activeMode === 'funders' ? buildFundingDataset() : buildContractDataset();
+            const prepared = dataset.map(entry => prepareRecord(entry, activeMode));
+            setDatasetForMode(activeMode, prepared);
+            markDeepScan(activeMode);
+            saveLocalBackup(activeMode);
+            if (activeMode === 'funders' && firebaseReady) {
+                updateStatus('Deep scan completed. Funders stored locally (override active).', 'warning');
+            }
+            applySearch(searchInput.value);
+        };
+
         const init = async () => {
             populateSelect('newCountry', COUNTRY_OPTIONS, DEFAULT_COUNTRY);
-            populateSelect('newCategory', CATEGORY_OPTIONS, CATEGORY_OPTIONS[0]);
-            populateSelect('newType', TYPE_OPTIONS, TYPE_OPTIONS[0]);
+            renderCountryFilters();
+            scanMeta = loadScanMeta();
+            const savedState = loadSearchState();
+            if (savedState.mode && MODE_CONFIG[savedState.mode]) {
+                activeMode = savedState.mode;
+            }
+            if (savedState.filters) {
+                filterState.countries = new Set(savedState.filters.countries || COUNTRY_OPTIONS);
+                filterState.category = savedState.filters.category || 'all';
+                filterState.type = savedState.filters.type || 'all';
+            }
+            syncCountryFilterUI();
+            searchModeSelect.value = activeMode;
+            updateModeUI();
+            searchInput.value = savedState.query || '';
             await initFirebaseSdk();
             setupFirebase();
             await loadFunders();
+            loadContractLeads();
+            if (hasLocalOverride('funders')) {
+                updateStatus('Deep scan override active. Using local funder intelligence.', 'warning');
+            }
+            applySearch(searchInput.value);
             tableBody.addEventListener('click', handleTableAction);
-            addFunderButton.addEventListener('click', async () => {
+            addRecordButton.addEventListener('click', async () => {
                 try {
-                    await addFunder();
+                    await addRecord();
                 } catch (error) {
-                    console.error('Failed to add funder', error);
-                    alert('Unable to add funder right now. Please try again.');
+                    console.error('Failed to add record', error);
+                    alert('Unable to add the record right now. Please try again.');
                 }
             });
             searchInput.addEventListener('input', (e) => {
                 applySearch(e.target.value);
+            });
+            searchModeSelect.addEventListener('change', (event) => {
+                activeMode = event.target.value;
+                updateModeUI();
+                applySearch(searchInput.value);
+            });
+            categoryFilterEl.addEventListener('change', (event) => {
+                filterState.category = event.target.value;
+                applySearch(searchInput.value);
+            });
+            typeFilterEl.addEventListener('change', (event) => {
+                filterState.type = event.target.value;
+                applySearch(searchInput.value);
+            });
+            countryFiltersEl.addEventListener('change', (event) => {
+                const input = event.target.closest('input[type="checkbox"][data-country]');
+                if (!input) {
+                    return;
+                }
+                const country = input.dataset.country;
+                if (input.checked) {
+                    filterState.countries.add(country);
+                } else {
+                    filterState.countries.delete(country);
+                }
+                applySearch(searchInput.value);
+            });
+            runDeepScanButton.addEventListener('click', runDeepScan);
+            clearFiltersButton.addEventListener('click', () => {
+                resetFilters();
             });
         };
 
