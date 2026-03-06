@@ -1,5 +1,5 @@
 # funding-management-system
-Search for 200 seed funders across South Africa, Russia, China, Brazil, and India with country/category filters and smart matching.
+Deep-scan funding intelligence (200 funders) and contract/service leads (100 opportunities) across South Africa, Russia, China, Brazil, and India with mode switching, sector filters, and smart matching.
 
 ## Firebase setup
 - Update the `firebaseConfig` object in `index.html` with your Firebase project settings.
