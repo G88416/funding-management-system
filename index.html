@@ -135,6 +135,7 @@
             { country: 'China', code: 'cn', count: 36 },
             { country: 'Russia', code: 'ru', count: 36 }
         ];
+        const PLACEHOLDER_DOMAIN = 'placeholder-funders.example.com';
 
         const generateSeedFunders = () => {
             const generated = [];
@@ -151,8 +152,8 @@
                         category,
                         type,
                         target: `${categoryLabel} initiatives and community partnerships in ${country}.`,
-                        website: `https://placeholder-funders.example.com/${slugBase}`,
-                        contacts: `info.${code}${label}@placeholder-funders.example.com`
+                        website: `https://${PLACEHOLDER_DOMAIN}/${slugBase}`,
+                        contacts: `info.${code}${label}@${PLACEHOLDER_DOMAIN}`
                     });
                 }
             });
