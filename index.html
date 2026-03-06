@@ -185,12 +185,13 @@
 
     <script>
         const firebaseConfig = {
-            apiKey: "YOUR_API_KEY",
-            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
-            projectId: "YOUR_PROJECT_ID",
-            storageBucket: "YOUR_PROJECT_ID.appspot.com",
-            messagingSenderId: "YOUR_SENDER_ID",
-            appId: "YOUR_APP_ID"
+            apiKey: "AIzaSyBo8epV9B7NiMOWAH97b036T9aC7P1qPRw",
+            authDomain: "funding-engine-b6dec.firebaseapp.com",
+            projectId: "funding-engine-b6dec",
+            storageBucket: "funding-engine-b6dec.firebasestorage.app",
+            messagingSenderId: "892946198108",
+            appId: "1:892946198108:web:62be27da10ddcb00f2c099",
+            measurementId: "G-8BZGPTZ6SK"
         };
 
         const FIREBASE_COLLECTIONS = {
@@ -458,6 +459,8 @@
         let firebaseReady = false;
         let firebaseSdk = null;
         let firestoreSdk = null;
+        let analyticsSdk = null;
+        let analytics = null;
         let scanMeta = {};
         const filterState = {
             countries: new Set(COUNTRY_OPTIONS),
@@ -1557,10 +1560,12 @@
             try {
                 firebaseSdk = await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js');
                 firestoreSdk = await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js');
+                analyticsSdk = await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-analytics.js');
             } catch (error) {
                 console.error('Firebase SDK failed to load', error);
                 firebaseSdk = null;
                 firestoreSdk = null;
+                analyticsSdk = null;
                 updateStatus('Firebase SDK unavailable. Data will be held in-memory until Firebase is configured.', 'warning');
             }
         };
@@ -1576,6 +1581,14 @@
             try {
                 const app = firebaseSdk.initializeApp(firebaseConfig);
                 db = firestoreSdk.getFirestore(app);
+                if (analyticsSdk?.getAnalytics) {
+                    try {
+                        analytics = analyticsSdk.getAnalytics(app);
+                    } catch (error) {
+                        console.warn('Firebase analytics unavailable', error);
+                        analytics = null;
+                    }
+                }
                 firebaseReady = true;
                 updateStatus('Firebase connected. Data will sync to Firestore.', 'ready');
             } catch (error) {
