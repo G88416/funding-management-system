@@ -564,8 +564,13 @@
             setupFirebase();
             await loadFunders();
             tableBody.addEventListener('click', handleTableAction);
-            addFunderButton.addEventListener('click', () => {
-                addFunder();
+            addFunderButton.addEventListener('click', async () => {
+                try {
+                    await addFunder();
+                } catch (error) {
+                    console.error('Failed to add funder', error);
+                    alert('Unable to add funder right now. Please try again.');
+                }
             });
             searchInput.addEventListener('input', (e) => {
                 applySearch(e.target.value);
