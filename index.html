@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Funding Management System - South Africa (Updated 2026)</title>
+    <title>Funding Management System - Global Funders (Updated 2026)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #f9f9f9; }
         h1 { color: #2c3e50; }
@@ -16,20 +16,28 @@
         .edit-btn { background: #3498db; color: white; }
         .delete-btn { background: #e74c3c; color: white; }
         .email-btn { background: #27ae60; color: white; }
-        #addForm input { padding: 8px; margin: 5px; width: 220px; border: 1px solid #ccc; border-radius: 4px; }
+        #addForm input, #addForm select { padding: 8px; margin: 5px; width: 220px; border: 1px solid #ccc; border-radius: 4px; }
         #addForm button { background: #2ecc71; color: white; padding: 10px 20px; }
+        #status { margin: 12px 0; padding: 10px 12px; border-radius: 6px; font-size: 14px; }
+        .status-warning { background: #fff3cd; color: #856404; border: 1px solid #ffeeba; }
+        .status-ready { background: #d4edda; color: #155724; border: 1px solid #c3e6cb; }
+        .status-error { background: #f8d7da; color: #721c24; border: 1px solid #f5c6cb; }
     </style>
 </head>
 <body>
-    <h1>Funding Management System (South Africa Focus - Expanded List)</h1>
-    <p>Search by keywords like "orphanages", "disabled elderly", "schools churches", or "hospice". Use "Email" to draft inquiries. Data saved in your browser.</p>
+    <h1>Funding Management System (Multi-Country Funder Search)</h1>
+    <p>Search funders, foundations, corporates, and listed companies across South Africa, Russia, China, Brazil, and India. Use the smart search to match country, category (e.g. hospice, orphanage, school), and keywords. Data syncs to Firebase when configured.</p>
+    <div id="status" class="status-warning">Firebase status: Not connected yet.</div>
 
-    <input type="text" id="search" placeholder="Search by name, funding target, or contacts...">
+    <input type="text" id="search" placeholder="Search by name, country, category, type, or contacts...">
 
     <table id="fundersTable">
         <thead>
             <tr>
                 <th>Name</th>
+                <th>Country</th>
+                <th>Category</th>
+                <th>Funder Type</th>
                 <th>Funding Target</th>
                 <th>Website</th>
                 <th>Contacts</th>
@@ -42,126 +50,530 @@
     <h2>Add / Manage Funder</h2>
     <div id="addForm">
         <input type="text" id="newName" placeholder="Name (required)">
+        <select id="newCountry"></select>
+        <select id="newCategory"></select>
+        <select id="newType"></select>
         <input type="text" id="newTarget" placeholder="Funding Target (e.g., schools, orphanages)">
-        <input type="text" id="newWebsite" placeholder="Website[](https://...)">
+        <input type="text" id="newWebsite" placeholder="Website (https://...)">
         <input type="text" id="newContacts" placeholder="Contacts (email/phone)">
-        <button onclick="addFunder()">Add New Funder</button>
+        <button id="addFunderButton">Add New Funder</button>
     </div>
 
     <script>
-        // Expanded initial data with more South African funders (2026-relevant)
+        const firebaseConfig = {
+            apiKey: "YOUR_API_KEY",
+            authDomain: "YOUR_PROJECT_ID.firebaseapp.com",
+            projectId: "YOUR_PROJECT_ID",
+            storageBucket: "YOUR_PROJECT_ID.appspot.com",
+            messagingSenderId: "YOUR_SENDER_ID",
+            appId: "YOUR_APP_ID"
+        };
+
+        const LOCAL_STORAGE_KEY = 'funders';
+        const DEFAULT_COUNTRY = 'South Africa';
+        const COUNTRY_OPTIONS = ['South Africa', 'Russia', 'China', 'Brazil', 'India'];
+        const CATEGORY_OPTIONS = [
+            'Education (Schools)',
+            'Orphanage & Child Welfare',
+            'Hospice & Palliative Care',
+            'Elderly Care',
+            'Disability Support',
+            'Community Health',
+            'Food Security',
+            'Youth Development'
+        ];
+        const TYPE_OPTIONS = ['Foundation', 'Corporate', 'Listed Company', 'Government/Agency'];
+        const FIRESTORE_BATCH_SIZE = 500;
+        const MIN_FUZZY_LENGTH = 4;
+        const MAX_EDIT_DISTANCE = 1;
+        const CATEGORY_SYNONYM_SEED = {
+            'Education (Schools)': ['school', 'schooling', 'education', 'learners', 'teachers', 'scholarship'],
+            'Orphanage & Child Welfare': ['orphan', 'orphans', 'children home', 'childcare', 'child welfare'],
+            'Hospice & Palliative Care': ['hospice', 'palliative', 'terminal care', 'end of life'],
+            'Elderly Care': ['elderly', 'seniors', 'old age', 'aged care'],
+            'Disability Support': ['disabled', 'disability', 'special needs', 'intellectual disability'],
+            'Community Health': ['health', 'clinic', 'medical', 'public health'],
+            'Food Security': ['nutrition', 'hunger', 'food relief', 'food parcels'],
+            'Youth Development': ['youth', 'skills', 'employment', 'training']
+        };
+
         const initialData = [
-            { name: "Kagiso Trust", target: "Education (schools), early childhood, socio-economic development, vulnerable communities including orphans and disabled", website: "https://kagiso.co.za/", contacts: "info@kagiso.co.za" },
-            { name: "Trevor Noah Foundation", target: "Youth education, digital literacy, disadvantaged schools, vulnerable children", website: "https://trevornoahfoundation.org/", contacts: "info@trevornoahfoundation.org" },
-            { name: "Spur Foundation (Spur Corporation - JSE listed)", target: "Vulnerable families, nutrition for children, early childhood education, orphan support via NGOs", website: "https://www.spurfoundation.co.za/", contacts: "spurfoundation@spur.co.za" },
-            { name: "JSE CSI", target: "Health, education (schools via Adopt-a-School), social development, vulnerable groups including elderly/disabled", website: "https://group.jse.co.za/", contacts: "ir@jse.co.za; +27 11 520 7000" },
-            { name: "Shoprite Holdings (JSE listed)", target: "Food security, hunger relief, youth employment, education, support for orphans/elderly via #ActForChange", website: "https://www.shopriteholdings.co.za/", contacts: "Via website contact form" },
-            { name: "Nazareth Care Africa / Nazareth House South Africa", target: "Indigent elderly (old age homes), orphaned children, hospice care including children and terminally ill", website: "https://nazarethcare.co.za/", contacts: "rosie.whittaker@nazarethcare.co.za; +27 79 114 6601" },
-            { name: "Little Eden Society", target: "Children and adults with profound intellectual disabilities (homes for disabled)", website: "https://littleeden.org.za/", contacts: "info@littleeden.org.za; +27 11 609 7246" },
-            { name: "Hollywood Foundation", target: "Elderly citizens, vulnerable members, non-profits supporting old age homes, disabled, education, community care", website: "https://hollywoodfoundation.co.za/", contacts: "Via website inquiry form" },
-            { name: "Tshikululu Social Investments", target: "Education, healthcare, livelihoods, youth, disabilities, community programs", website: "https://www.tshikululu.org.za/", contacts: "info@tshikululu.org.za" },
-            { name: "FirstRand Foundation", target: "Children with disabilities and learning difficulties, education, vulnerable communities", website: "https://www.firstrand.co.za/ (search Foundation)", contacts: "Via FirstRand corporate site form" },
-            { name: "Gauteng Partnership Fund (GPF) CSI", target: "Education, youth empowerment, disability support, women's empowerment, elderly via faith-based/welfare programs", website: "https://www.gpf.co.za/", contacts: "Via website proposals/contact" },
-            { name: "Abbeyfield South Africa", target: "Elderly housing and support (old age homes, community care for seniors)", website: "https://www.charitysa.co.za/abbeyfield-south-africa.html (via CharitySA)", contacts: "Via CharitySA directory or site inquiry" },
-            { name: "MaAfrika Tikkun", target: "Vulnerable children, orphans, education, community development, health for disadvantaged", website: "https://www.tikkun.org.za/", contacts: "info@tikkun.org.za" },
-            { name: "Oasis Association", target: "Adults with intellectual disabilities (training, employment, community support)", website: "https://www.oasis.org.za/", contacts: "info@oasis.org.za" }
+            { name: "Kagiso Trust", country: "South Africa", category: "Education (Schools)", type: "Foundation", target: "Education (schools), early childhood, socio-economic development, vulnerable communities including orphans and disabled", website: "https://kagiso.co.za/", contacts: "info@kagiso.co.za" },
+            { name: "Trevor Noah Foundation", country: "South Africa", category: "Education (Schools)", type: "Foundation", target: "Youth education, digital literacy, disadvantaged schools, vulnerable children", website: "https://trevornoahfoundation.org/", contacts: "info@trevornoahfoundation.org" },
+            { name: "Spur Foundation (Spur Corporation - JSE listed)", country: "South Africa", category: "Orphanage & Child Welfare", type: "Listed Company", target: "Vulnerable families, nutrition for children, early childhood education, orphan support via NGOs", website: "https://www.spurfoundation.co.za/", contacts: "spurfoundation@spur.co.za" },
+            { name: "JSE CSI", country: "South Africa", category: "Community Health", type: "Listed Company", target: "Health, education (schools via Adopt-a-School), social development, vulnerable groups including elderly/disabled", website: "https://group.jse.co.za/", contacts: "ir@jse.co.za; +27 11 520 7000" },
+            { name: "Shoprite Holdings (JSE listed)", country: "South Africa", category: "Food Security", type: "Listed Company", target: "Food security, hunger relief, youth employment, education, support for orphans/elderly via #ActForChange", website: "https://www.shopriteholdings.co.za/", contacts: "Via website contact form" },
+            { name: "Nazareth Care Africa / Nazareth House South Africa", country: "South Africa", category: "Hospice & Palliative Care", type: "Foundation", target: "Indigent elderly (old age homes), orphaned children, hospice care including children and terminally ill", website: "https://nazarethcare.co.za/", contacts: "rosie.whittaker@nazarethcare.co.za; +27 79 114 6601" },
+            { name: "Little Eden Society", country: "South Africa", category: "Disability Support", type: "Foundation", target: "Children and adults with profound intellectual disabilities (homes for disabled)", website: "https://littleeden.org.za/", contacts: "info@littleeden.org.za; +27 11 609 7246" },
+            { name: "Hollywood Foundation", country: "South Africa", category: "Elderly Care", type: "Corporate", target: "Elderly citizens, vulnerable members, non-profits supporting old age homes, disabled, education, community care", website: "https://hollywoodfoundation.co.za/", contacts: "Via website inquiry form" },
+            { name: "MaAfrika Tikkun", country: "South Africa", category: "Youth Development", type: "Foundation", target: "Vulnerable children, orphans, education, community development, health for disadvantaged", website: "https://www.tikkun.org.za/", contacts: "info@tikkun.org.za" },
+            { name: "Sberbank Charitable Foundation 'Contribution to the Future'", country: "Russia", category: "Education (Schools)", type: "Corporate", target: "Education programs, digital skills, youth development, inclusive learning", website: "https://vbudushee.ru/", contacts: "Via website contact form" },
+            { name: "RUSAL Social Programs", country: "Russia", category: "Community Health", type: "Listed Company", target: "Regional community health, education, sports, and social infrastructure support", website: "https://rusal.ru/en/responsibility/", contacts: "Via website contact form" },
+            { name: "Tencent Charity Foundation", country: "China", category: "Community Health", type: "Corporate", target: "Public welfare, disaster relief, community health and education programs", website: "https://gongyi.qq.com/", contacts: "Via website contact form" },
+            { name: "Alibaba Foundation", country: "China", category: "Education (Schools)", type: "Corporate", target: "Education, rural development, digital inclusion, youth innovation", website: "https://www.alibabagroup.com/en/ir/esg", contacts: "Via website contact form" },
+            { name: "Fundação Bradesco", country: "Brazil", category: "Education (Schools)", type: "Foundation", target: "Education, digital skills, inclusive schooling, community development", website: "https://fundacao.bradesco/", contacts: "Via website contact form" },
+            { name: "Fundação Itaú Social", country: "Brazil", category: "Education (Schools)", type: "Corporate", target: "Education policy, school support, youth development, community partnerships", website: "https://www.itausocial.org.br/", contacts: "Via website contact form" },
+            { name: "Tata Trusts", country: "India", category: "Community Health", type: "Foundation", target: "Healthcare access, education, rural livelihoods, nutrition, water and sanitation", website: "https://www.tatatrusts.org/", contacts: "Via website contact form" },
+            { name: "Reliance Foundation", country: "India", category: "Youth Development", type: "Corporate", target: "Education, sports, rural transformation, health initiatives, women empowerment", website: "https://www.reliancefoundation.org/", contacts: "Via website contact form" }
         ];
 
-        let funders = JSON.parse(localStorage.getItem('funders')) || initialData;
+        const statusEl = document.getElementById('status');
+        const searchInput = document.getElementById('search');
+        const tableBody = document.querySelector('#fundersTable tbody');
+        const addFunderButton = document.getElementById('addFunderButton');
+        let funders = [];
+        let db = null;
+        let firebaseReady = false;
+        let firebaseSdk = null;
+        let firestoreSdk = null;
 
-        function renderTable(data) {
-            const tbody = document.querySelector('#fundersTable tbody');
-            tbody.innerHTML = '';
+        const normalizeText = (text) => (text || '')
+            .toString()
+            .toLowerCase()
+            .normalize('NFD')
+            .replace(/\p{Diacritic}/gu, '')
+            .replace(/[^a-z0-9\s]/g, ' ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        const tokenize = (text) => normalizeText(text).split(' ').filter(Boolean);
+
+        const CATEGORY_SYNONYMS = Object.fromEntries(
+            Object.entries(CATEGORY_SYNONYM_SEED).map(([key, value]) => [normalizeText(key), value])
+        );
+
+        const escapeHtml = (value) => (value || '')
+            .toString()
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#39;');
+
+        const isFirebaseConfigured = (config) => Object.values(config).every(value => value && !String(value).includes('YOUR_'));
+
+        const updateStatus = (message, type = 'warning') => {
+            statusEl.textContent = message;
+            statusEl.classList.remove('status-warning', 'status-ready', 'status-error');
+            statusEl.classList.add(type === 'ready' ? 'status-ready' : type === 'error' ? 'status-error' : 'status-warning');
+        };
+
+        const prepareFunder = (raw) => {
+            const funder = {
+                id: raw.id || null,
+                name: (raw.name || '').trim(),
+                country: (raw.country || DEFAULT_COUNTRY).trim(),
+                category: (raw.category || CATEGORY_OPTIONS[0]).trim(),
+                type: (raw.type || TYPE_OPTIONS[0]).trim(),
+                target: (raw.target || '').trim(),
+                website: (raw.website || '').trim(),
+                contacts: (raw.contacts || '').trim()
+            };
+            const categoryKey = normalizeText(funder.category);
+            const synonyms = CATEGORY_SYNONYMS[categoryKey] || [];
+            const searchSource = [
+                funder.name,
+                funder.country,
+                funder.category,
+                funder.type,
+                funder.target,
+                funder.contacts,
+                ...synonyms
+            ].join(' ');
+            funder.meta = {
+                nameText: normalizeText(funder.name),
+                countryText: normalizeText(funder.country),
+                categoryText: normalizeText(funder.category),
+                typeText: normalizeText(funder.type),
+                searchText: normalizeText(searchSource),
+                tokens: tokenize(searchSource)
+            };
+            funder.meta.tokenSet = new Set(funder.meta.tokens);
+            return funder;
+        };
+
+        const stripMeta = (funder) => {
+            const { meta, id, ...rest } = funder;
+            return rest;
+        };
+
+        const sanitizeWebsite = (website) => {
+            if (!website) return '';
+            try {
+                const url = new URL(website.trim());
+                return (url.protocol === 'http:' || url.protocol === 'https:') ? url.toString() : '';
+            } catch (error) {
+                return '';
+            }
+        };
+
+        const sanitizeEmailValue = (value) => (value || '')
+            .toString()
+            .replace(/[\r\n]+/g, ' ')
+            .trim();
+
+        const applyOptionEdit = (value, options, fallback, label) => {
+            if (value === null) {
+                return fallback;
+            }
+            const normalized = normalizeText(value);
+            const match = options.find(option => normalizeText(option) === normalized);
+            if (!match) {
+                alert(`"${value}" is not a valid ${label}. Keeping "${fallback}".`);
+                return fallback;
+            }
+            return match;
+        };
+
+        const populateSelect = (selectId, options, defaultValue) => {
+            const select = document.getElementById(selectId);
+            select.innerHTML = options.map(option => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join('');
+            if (defaultValue) {
+                select.value = defaultValue;
+            }
+        };
+
+        const initFirebaseSdk = async () => {
+            try {
+                firebaseSdk = await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-app.js');
+                firestoreSdk = await import('https://www.gstatic.com/firebasejs/11.0.0/firebase-firestore.js');
+            } catch (error) {
+                console.error('Firebase SDK failed to load', error);
+                firebaseSdk = null;
+                firestoreSdk = null;
+                updateStatus('Firebase SDK unavailable. Using local cache.', 'warning');
+            }
+        };
+
+        const setupFirebase = () => {
+            if (!firebaseSdk || !firestoreSdk) {
+                return;
+            }
+            if (!isFirebaseConfigured(firebaseConfig)) {
+                updateStatus('Firebase not configured. Update firebaseConfig in index.html to enable cloud sync.', 'warning');
+                return;
+            }
+            try {
+                const app = firebaseSdk.initializeApp(firebaseConfig);
+                db = firestoreSdk.getFirestore(app);
+                firebaseReady = true;
+                updateStatus('Firebase connected. Data will sync to Firestore.', 'ready');
+            } catch (error) {
+                console.error('Firebase init failed', error);
+                updateStatus('Firebase initialization failed. Using local cache.', 'error');
+                firebaseReady = false;
+            }
+        };
+
+        const seedFirebase = async () => {
+            const collectionRef = firestoreSdk.collection(db, 'funders');
+            const seeded = [];
+            let batch = firestoreSdk.writeBatch(db);
+            let batchCount = 0;
+            for (const entry of initialData) {
+                const prepared = prepareFunder(entry);
+                const docRef = firestoreSdk.doc(collectionRef);
+                batch.set(docRef, { ...stripMeta(prepared), lastUpdated: firestoreSdk.serverTimestamp() });
+                prepared.id = docRef.id;
+                seeded.push(prepared);
+                batchCount += 1;
+                if (batchCount === FIRESTORE_BATCH_SIZE) {
+                    await batch.commit();
+                    batch = firestoreSdk.writeBatch(db);
+                    batchCount = 0;
+                }
+            }
+            if (batchCount > 0) {
+                await batch.commit();
+            }
+            return seeded;
+        };
+
+        const loadFunders = async () => {
+            let loadedFromFirebase = false;
+            if (firebaseReady) {
+                try {
+                    const snapshot = await firestoreSdk.getDocs(firestoreSdk.collection(db, 'funders'));
+                    if (snapshot.empty) {
+                        funders = await seedFirebase();
+                    } else {
+                        funders = snapshot.docs.map(docSnap => prepareFunder({ id: docSnap.id, ...docSnap.data() }));
+                    }
+                    loadedFromFirebase = true;
+                } catch (error) {
+                    console.error('Firebase load failed', error);
+                    updateStatus('Firebase sync failed. Using local cache.', 'error');
+                    firebaseReady = false;
+                }
+            }
+            if (!loadedFromFirebase) {
+                const localData = JSON.parse(localStorage.getItem(LOCAL_STORAGE_KEY) || '[]');
+                const source = localData.length ? localData : initialData;
+                funders = source.map(prepareFunder);
+            }
+            saveLocalBackup();
+            renderTable(funders);
+        };
+
+        const saveLocalBackup = () => {
+            localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(funders.map(stripMeta)));
+        };
+
+        const persistFunder = async (funder) => {
+            if (!firebaseReady) {
+                saveLocalBackup();
+                return;
+            }
+            try {
+                if (funder.id) {
+                    await firestoreSdk.updateDoc(firestoreSdk.doc(db, 'funders', funder.id), { ...stripMeta(funder), lastUpdated: firestoreSdk.serverTimestamp() });
+                } else {
+                    const docRef = await firestoreSdk.addDoc(firestoreSdk.collection(db, 'funders'), { ...stripMeta(funder), lastUpdated: firestoreSdk.serverTimestamp() });
+                    funder.id = docRef.id;
+                }
+                saveLocalBackup();
+            } catch (error) {
+                console.error('Firebase save failed', error);
+                updateStatus('Firebase sync failed while saving. Data cached locally.', 'error');
+                saveLocalBackup();
+            }
+        };
+
+        const removeFunder = async (funder) => {
+            if (!firebaseReady || !funder.id) {
+                saveLocalBackup();
+                return;
+            }
+            try {
+                await firestoreSdk.deleteDoc(firestoreSdk.doc(db, 'funders', funder.id));
+                saveLocalBackup();
+            } catch (error) {
+                console.error('Firebase delete failed', error);
+                updateStatus('Firebase sync failed while deleting. Data cached locally.', 'error');
+            }
+        };
+
+        const renderTable = (data) => {
+            tableBody.innerHTML = '';
             data.forEach((funder, index) => {
                 const row = document.createElement('tr');
+                const website = sanitizeWebsite(funder.website);
+                const safeWebsite = website ? `<a href="${website}" target="_blank" rel="noopener noreferrer">${escapeHtml(website)}</a>` : 'N/A';
                 row.innerHTML = `
-                    <td>${funder.name}</td>
-                    <td>${funder.target}</td>
-                    <td>${funder.website ? `<a href="${funder.website}" target="_blank">${funder.website}</a>` : 'N/A'}</td>
-                    <td>${funder.contacts || 'N/A'}</td>
+                    <td>${escapeHtml(funder.name)}</td>
+                    <td>${escapeHtml(funder.country)}</td>
+                    <td>${escapeHtml(funder.category)}</td>
+                    <td>${escapeHtml(funder.type)}</td>
+                    <td>${escapeHtml(funder.target || 'N/A')}</td>
+                    <td>${safeWebsite}</td>
+                    <td>${escapeHtml(funder.contacts || 'N/A')}</td>
                     <td>
-                        <button class="edit-btn" onclick="editFunder(${index})">Edit</button>
-                        <button class="delete-btn" onclick="deleteFunder(${index})">Delete</button>
-                        <button class="email-btn" onclick="sendEmail('${funder.name.replace(/'/g, "\\'")}', '${funder.website.replace(/'/g, "\\'")}', '${(funder.contacts || '').replace(/'/g, "\\'")}')">Email</button>
+                        <button class="edit-btn" data-action="edit" data-index="${index}">Edit</button>
+                        <button class="delete-btn" data-action="delete" data-index="${index}">Delete</button>
+                        <button class="email-btn" data-action="email" data-index="${index}">Email</button>
                     </td>
                 `;
-                tbody.appendChild(row);
+                tableBody.appendChild(row);
             });
-        }
+        };
 
-        function saveData() {
-            localStorage.setItem('funders', JSON.stringify(funders));
-            renderTable(funders);
-        }
+        const handleTableAction = (event) => {
+            const button = event.target.closest('button[data-action]');
+            if (!button) {
+                return;
+            }
+            const index = Number(button.dataset.index);
+            const funder = funders[index];
+            if (!funder) {
+                return;
+            }
+            const action = button.dataset.action;
+            if (action === 'edit') {
+                editFunder(index);
+            } else if (action === 'delete') {
+                deleteFunder(index);
+            } else if (action === 'email') {
+                const website = sanitizeWebsite(funder.website);
+                sendEmail(funder.name, website, funder.contacts || '', funder.country, funder.category);
+            }
+        };
 
-        function addFunder() {
+        const scoreFunder = (funder, terms) => {
+            let score = 0;
+            terms.forEach(term => {
+                if (funder.meta.nameText.includes(term)) score += 6;
+                if (funder.meta.categoryText.includes(term)) score += 4;
+                if (funder.meta.countryText.includes(term)) score += 4;
+                if (funder.meta.typeText.includes(term)) score += 3;
+                if (funder.meta.searchText.includes(term)) score += 2;
+            });
+            return score;
+        };
+
+        const levenshteinDistance = (a, b) => {
+            if (a === b) return 0;
+            let longer = a;
+            let shorter = b;
+            if (a.length < b.length) {
+                longer = b;
+                shorter = a;
+            }
+            const previous = new Array(shorter.length + 1).fill(0);
+            const current = new Array(shorter.length + 1).fill(0);
+            for (let j = 0; j <= shorter.length; j += 1) previous[j] = j;
+            for (let i = 1; i <= longer.length; i += 1) {
+                current[0] = i;
+                for (let j = 1; j <= shorter.length; j += 1) {
+                    const cost = longer[i - 1] === shorter[j - 1] ? 0 : 1;
+                    current[j] = Math.min(
+                        previous[j] + 1,
+                        current[j - 1] + 1,
+                        previous[j - 1] + cost
+                    );
+                }
+                for (let j = 0; j <= shorter.length; j += 1) {
+                    previous[j] = current[j];
+                }
+            }
+            return previous[shorter.length];
+        };
+
+        const termMatches = (funder, term) => {
+            if (funder.meta.tokenSet.has(term)) return true;
+            for (const token of funder.meta.tokens) {
+                if (token.startsWith(term) || term.startsWith(token)) return true;
+                if (
+                    term.length >= MIN_FUZZY_LENGTH &&
+                    token.length >= MIN_FUZZY_LENGTH &&
+                    Math.abs(token.length - term.length) <= MAX_EDIT_DISTANCE &&
+                    levenshteinDistance(token, term) <= MAX_EDIT_DISTANCE
+                ) {
+                    return true;
+                }
+            }
+            return funder.meta.searchText.includes(term);
+        };
+
+        const applySearch = (query) => {
+            const terms = tokenize(query);
+            if (!terms.length) {
+                renderTable(funders);
+                return;
+            }
+            const ranked = funders
+                .filter(funder => terms.every(term => termMatches(funder, term)))
+                .map(funder => ({ funder, score: scoreFunder(funder, terms) }))
+                .sort((a, b) => b.score - a.score)
+                .map(entry => entry.funder);
+            renderTable(ranked);
+        };
+
+        const clearInputs = () => {
+            document.getElementById('newName').value = '';
+            document.getElementById('newTarget').value = '';
+            document.getElementById('newWebsite').value = '';
+            document.getElementById('newContacts').value = '';
+            document.getElementById('newCountry').value = DEFAULT_COUNTRY;
+            document.getElementById('newCategory').value = CATEGORY_OPTIONS[0];
+            document.getElementById('newType').value = TYPE_OPTIONS[0];
+        };
+
+        const addFunder = async () => {
             const name = document.getElementById('newName').value.trim();
+            const country = document.getElementById('newCountry').value.trim();
+            const category = document.getElementById('newCategory').value.trim();
+            const type = document.getElementById('newType').value.trim();
             const target = document.getElementById('newTarget').value.trim();
             const website = document.getElementById('newWebsite').value.trim();
             const contacts = document.getElementById('newContacts').value.trim();
-            if (name && target) {
-                funders.push({ name, target, website, contacts });
-                saveData();
-                clearInputs();
-            } else {
+            if (!name || !target) {
                 alert('Name and Funding Target are required.');
+                return;
             }
-        }
+            const funder = prepareFunder({ name, country, category, type, target, website, contacts });
+            funders.push(funder);
+            await persistFunder(funder);
+            renderTable(funders);
+            clearInputs();
+        };
 
-        function editFunder(index) {
-            const f = funders[index];
-            const newName = prompt('Edit Name:', f.name);
-            const newTarget = prompt('Edit Funding Target:', f.target);
-            const newWebsite = prompt('Edit Website:', f.website);
-            const newContacts = prompt('Edit Contacts:', f.contacts);
-            if (newName !== null) f.name = newName.trim();
-            if (newTarget !== null) f.target = newTarget.trim();
-            if (newWebsite !== null) f.website = newWebsite.trim();
-            if (newContacts !== null) f.contacts = newContacts.trim();
-            saveData();
-        }
+        const editFunder = async (index) => {
+            const funder = funders[index];
+            const newName = prompt('Edit Name:', funder.name);
+            const newCountry = prompt('Edit Country:', funder.country);
+            const newCategory = prompt('Edit Category:', funder.category);
+            const newType = prompt('Edit Funder Type:', funder.type);
+            const newTarget = prompt('Edit Funding Target:', funder.target);
+            const newWebsite = prompt('Edit Website:', funder.website);
+            const newContacts = prompt('Edit Contacts:', funder.contacts);
+            if (newName !== null) funder.name = newName.trim();
+            funder.country = applyOptionEdit(newCountry, COUNTRY_OPTIONS, funder.country, 'country');
+            funder.category = applyOptionEdit(newCategory, CATEGORY_OPTIONS, funder.category, 'category');
+            funder.type = applyOptionEdit(newType, TYPE_OPTIONS, funder.type, 'funder type');
+            if (newTarget !== null) funder.target = newTarget.trim();
+            if (newWebsite !== null) funder.website = newWebsite.trim();
+            if (newContacts !== null) funder.contacts = newContacts.trim();
+            funders[index] = prepareFunder(funder);
+            await persistFunder(funders[index]);
+            renderTable(funders);
+        };
 
-        function deleteFunder(index) {
-            if (confirm('Delete this funder?')) {
-                funders.splice(index, 1);
-                saveData();
+        const deleteFunder = async (index) => {
+            if (!confirm('Delete this funder?')) {
+                return;
             }
-        }
+            const [removed] = funders.splice(index, 1);
+            await removeFunder(removed);
+            renderTable(funders);
+        };
 
-        function clearInputs() {
-            ['newName', 'newTarget', 'newWebsite', 'newContacts'].forEach(id => document.getElementById(id).value = '');
-        }
-
-        function sendEmail(name, website, contacts) {
-            const emailAddr = contacts.includes('@') ? contacts.split(/[,; ]+/).find(c => c.includes('@')) || '' : '';
-            const subject = encodeURIComponent(`Funding / Partnership Inquiry: Support for Vulnerable Groups in Gauteng`);
+        const sendEmail = (name, website, contacts, country, category) => {
+            const safeCountry = sanitizeEmailValue(country) || 'your region';
+            const safeCategory = sanitizeEmailValue(category) || 'your focus area';
+            const safeName = sanitizeEmailValue(name) || 'team';
+            const contactText = sanitizeEmailValue(contacts);
+            const safeWebsite = sanitizeEmailValue(website) || 'N/A';
+            const safeContacts = contactText || 'N/A';
+            const emailAddr = contactText && contactText.includes('@')
+                ? contactText.split(/[,; ]+/).find(c => c.includes('@')) || ''
+                : '';
+            const subject = encodeURIComponent(`Funding Inquiry for ${safeCategory} in ${safeCountry}`);
             const body = encodeURIComponent(
-                `Dear ${name} Team,\n\n` +
-                `I am reaching out from Pretoria/Gauteng regarding potential funding, grants, or CSI support.\n` +
-                `Our work focuses on [e.g., schools, orphanages, elderly care, homes for the disabled, hospices, churches... – please specify your cause].\n\n` +
+                `Dear ${safeName} Team,\n\n` +
+                `I am reaching out regarding potential funding, grants, or CSI support.\n` +
+                `Our work focuses on ${safeCategory.toLowerCase()} in ${safeCountry}.\n\n` +
                 `Relevant details:\n` +
-                `Website: ${website || 'N/A'}\n` +
-                `Contacts: ${contacts || 'N/A'}\n\n` +
+                `Website: ${safeWebsite}\n` +
+                `Contacts: ${safeContacts}\n\n` +
                 `Could you please share information on your current priorities, application process, or how we might align?\n\n` +
                 `Thank you for your time and consideration.\n` +
                 `Best regards,\nGoodness\n[Your phone/email/organisation]`
             );
             window.location.href = `mailto:${emailAddr}?subject=${subject}&body=${body}`;
-        }
+        };
 
-        // Sophisticated real-time search: multi-term AND matching
-        document.getElementById('search').addEventListener('input', (e) => {
-            const query = e.target.value.toLowerCase().trim();
-            const terms = query.split(/\s+/).filter(t => t);
-            const filtered = funders.filter(f => {
-                const text = `${f.name} ${f.target} ${f.contacts || ''}`.toLowerCase();
-                return terms.every(term => text.includes(term));
+        const init = async () => {
+            populateSelect('newCountry', COUNTRY_OPTIONS, DEFAULT_COUNTRY);
+            populateSelect('newCategory', CATEGORY_OPTIONS, CATEGORY_OPTIONS[0]);
+            populateSelect('newType', TYPE_OPTIONS, TYPE_OPTIONS[0]);
+            await initFirebaseSdk();
+            setupFirebase();
+            await loadFunders();
+            tableBody.addEventListener('click', handleTableAction);
+            addFunderButton.addEventListener('click', async () => {
+                try {
+                    await addFunder();
+                } catch (error) {
+                    console.error('Failed to add funder', error);
+                    alert('Unable to add funder right now. Please try again.');
+                }
             });
-            renderTable(filtered);
-        });
+            searchInput.addEventListener('input', (e) => {
+                applySearch(e.target.value);
+            });
+        };
 
-        // Initial render
-        renderTable(funders);
+        init();
     </script>
 </body>
 </html>
