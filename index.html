@@ -211,6 +211,8 @@
         const CONTRACT_TOTAL_TARGET = sumCountryTargets(CONTRACT_COUNTRY_TARGETS);
         const FUNDING_INTENT_TERMS = ['funding', 'grant', 'csr', 'foundation', 'donation', 'philanthropy', 'impact'];
         const CONTRACT_INTENT_TERMS = ['contract', 'tender', 'rfp', 'service', 'logistics', 'supplier', 'client'];
+        const DEFAULT_RESULTS_LABEL = 'Search Results';
+        const DEFAULT_FORM_HELP = 'Add new records to the active engine.';
         const MS_PER_SECOND = 1000;
         const MS_PER_MINUTE = 60 * MS_PER_SECOND;
         const MS_PER_HOUR = 60 * MS_PER_MINUTE;
@@ -628,11 +630,11 @@
         const MODE_CONFIG = {
             funders: {
                 label: 'Funding Intelligence',
-                resultsLabel: 'Search Results',
+                resultsLabel: DEFAULT_RESULTS_LABEL,
                 typeLabel: 'Record Type',
                 targetLabel: 'Target',
                 targetPlaceholder: 'Target (e.g., focus areas, regions)',
-                formHelp: 'Add new records to the active engine.',
+                formHelp: DEFAULT_FORM_HELP,
                 categoryOptions: CATEGORY_OPTIONS,
                 typeOptions: TYPE_OPTIONS,
                 intentTerms: FUNDING_INTENT_TERMS,
@@ -642,11 +644,11 @@
             },
             contracts: {
                 label: 'Opportunity Leads',
-                resultsLabel: 'Search Results',
+                resultsLabel: DEFAULT_RESULTS_LABEL,
                 typeLabel: 'Opportunity Type',
                 targetLabel: 'Need',
                 targetPlaceholder: 'Need (e.g., focus areas, requirements)',
-                formHelp: 'Add new records to the active engine.',
+                formHelp: DEFAULT_FORM_HELP,
                 categoryOptions: CONTRACT_CATEGORY_OPTIONS,
                 typeOptions: CONTRACT_TYPE_OPTIONS,
                 intentTerms: CONTRACT_INTENT_TERMS,
