@@ -45,7 +45,7 @@
 </head>
 <body>
     <h1>Funding Management System (Multi-Country Intelligence Search)</h1>
-    <p>Run deep scans for funders, foundations, corporates, and contract opportunities across South Africa, Russia, China, Brazil, and India. Use the advanced search console to target sectors, services, and keywords. Data syncs to Firebase when configured.</p>
+    <p>Run deep scans for 400 funders (including 240 in South Africa) and 200 contract opportunities (including 120 in South Africa) across South Africa, Russia, China, Brazil, and India. Use the advanced search console to target sectors, services, and keywords. Data syncs to Firebase when configured.</p>
     <div id="status" class="status-warning">Firebase status: Not connected yet.</div>
 
     <section class="engine-panel">
@@ -57,8 +57,8 @@
             <div class="control-group">
                 <label for="searchMode">Search Engine Mode</label>
                 <select id="searchMode">
-                    <option value="funders">Funding Intelligence (200 funders)</option>
-                    <option value="contracts">Contract & Service Leads (100 opportunities)</option>
+                    <option value="funders">Funding Intelligence (400 funders)</option>
+                    <option value="contracts">Contract & Service Leads (200 opportunities)</option>
                 </select>
             </div>
             <div class="control-group">
@@ -79,6 +79,73 @@
             </div>
         </div>
         <div id="engineMetrics" class="engine-metrics"></div>
+    </section>
+
+    <section class="engine-panel">
+        <div class="engine-header">
+            <h2>Search Engine Options (2026)</h2>
+            <p>Compare search stack deployments to power the funding intelligence engine.</p>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Option</th>
+                    <th>Type</th>
+                    <th>Best For</th>
+                    <th>Setup Difficulty</th>
+                    <th>Cost (2026)</th>
+                    <th>Vector / AI Search?</th>
+                    <th>Example Use Case (your context)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Meilisearch</td>
+                    <td>Open-source</td>
+                    <td>Fast typo-tolerant search</td>
+                    <td>Very easy</td>
+                    <td>Free self-host / cheap cloud</td>
+                    <td>Yes (hybrid)</td>
+                    <td>Search your list of funders by name/target/keywords</td>
+                </tr>
+                <tr>
+                    <td>Typesense</td>
+                    <td>Open-source</td>
+                    <td>Algolia-like speed &amp; simplicity</td>
+                    <td>Easy</td>
+                    <td>Free self-host / affordable cloud</td>
+                    <td>Yes</td>
+                    <td>Instant search in funding database</td>
+                </tr>
+                <tr>
+                    <td>OpenSearch</td>
+                    <td>Open-source</td>
+                    <td>Elasticsearch fork (very powerful)</td>
+                    <td>Medium</td>
+                    <td>Free (self-host) or AWS managed</td>
+                    <td>Yes (plugins)</td>
+                    <td>Larger document collection</td>
+                </tr>
+                <tr>
+                    <td>ZincSearch / Quickwit</td>
+                    <td>Open-source</td>
+                    <td>Lightweight alternatives</td>
+                    <td>Easy–medium</td>
+                    <td>Free</td>
+                    <td>Some</td>
+                    <td>Logs or small–medium docs</td>
+                </tr>
+                <tr>
+                    <td>SQLite + FTS5</td>
+                    <td>Built-in DB</td>
+                    <td>Tiny / embedded search</td>
+                    <td>Very easy</td>
+                    <td>Free</td>
+                    <td>No (but fast)</td>
+                    <td>Offline search in your HTML app</td>
+                </tr>
+            </tbody>
+        </table>
     </section>
 
     <div class="search-row">
@@ -192,14 +259,14 @@
             'Consulting & Advisory': ['consulting', 'advisory', 'strategy', 'operations']
         };
         const FUNDING_COUNTRY_TARGETS = {
-            'South Africa': 40,
+            'South Africa': 240,
             'Brazil': 40,
             'India': 40,
             'China': 40,
             'Russia': 40
         };
         const CONTRACT_COUNTRY_TARGETS = {
-            'South Africa': 20,
+            'South Africa': 120,
             'Brazil': 20,
             'India': 20,
             'China': 20,
