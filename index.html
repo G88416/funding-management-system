@@ -45,7 +45,7 @@
 </head>
 <body>
     <h1>Funding Management System (Multi-Country Intelligence Search)</h1>
-    <p id="engineIntro">Run deep scans across South Africa, Russia, China, Brazil, and India. Use the advanced search console to target sectors and keywords. Data syncs to Firebase when configured.</p>
+    <p id="engineIntro">Run deep scans across supported regions. Use the advanced search console to target sectors and keywords. Data syncs to Firebase when configured.</p>
     <div id="status" class="status-warning">Firebase status: Not connected yet.</div>
 
     <section class="engine-panel">
@@ -211,6 +211,8 @@
         const CONTRACT_TOTAL_TARGET = sumCountryTargets(CONTRACT_COUNTRY_TARGETS);
         const FUNDING_INTENT_TERMS = ['funding', 'grant', 'csr', 'foundation', 'donation', 'philanthropy', 'impact'];
         const CONTRACT_INTENT_TERMS = ['contract', 'tender', 'rfp', 'service', 'logistics', 'supplier', 'client'];
+        const GENERIC_RESULTS_LABEL = 'Search Results';
+        const GENERIC_FORM_HELP = 'Add new records to the active engine.';
         const MS_PER_SECOND = 1000;
         const MS_PER_MINUTE = 60 * MS_PER_SECOND;
         const MS_PER_HOUR = 60 * MS_PER_MINUTE;
@@ -628,11 +630,11 @@
         const MODE_CONFIG = {
             funders: {
                 label: 'Funding Intelligence',
-                resultsLabel: 'Search Results',
+                resultsLabel: GENERIC_RESULTS_LABEL,
                 typeLabel: 'Record Type',
                 targetLabel: 'Target',
                 targetPlaceholder: 'Target (e.g., schools, orphanages)',
-                formHelp: 'Add new records to the active engine.',
+                formHelp: GENERIC_FORM_HELP,
                 categoryOptions: CATEGORY_OPTIONS,
                 typeOptions: TYPE_OPTIONS,
                 intentTerms: FUNDING_INTENT_TERMS,
@@ -642,11 +644,11 @@
             },
             contracts: {
                 label: 'Opportunity Leads',
-                resultsLabel: 'Search Results',
+                resultsLabel: GENERIC_RESULTS_LABEL,
                 typeLabel: 'Opportunity Type',
                 targetLabel: 'Need',
                 targetPlaceholder: 'Need (e.g., logistics, fleet, IT support)',
-                formHelp: 'Add new records to the active engine.',
+                formHelp: GENERIC_FORM_HELP,
                 categoryOptions: CONTRACT_CATEGORY_OPTIONS,
                 typeOptions: CONTRACT_TYPE_OPTIONS,
                 intentTerms: CONTRACT_INTENT_TERMS,
