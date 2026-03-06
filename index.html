@@ -168,6 +168,9 @@
             phraseBoost: 1.8,
             vectorBoost: 0.35
         };
+        const NAVBOOST_SAVE_DELAY_MS = 800;
+        const SCAN_META_SAVE_DELAY_MS = 800;
+        const SEARCH_STATE_SAVE_DELAY_MS = 600;
         const FUNDING_CATEGORY_SYNONYM_SEED = {
             'Education (Schools)': ['school', 'schooling', 'education', 'learners', 'teachers', 'scholarship'],
             'Orphanage & Child Welfare': ['orphan', 'orphans', 'children home', 'childcare', 'child welfare'],
@@ -412,6 +415,7 @@
             'until', 'up', 'very', 'was', 'we', 'were', 'what', 'when', 'where', 'which', 'while', 'who', 'whom',
             'why', 'with', 'would', 'you', 'your', 'yours', 'yourself', 'yourselves'
         ]);
+        const STEM_CACHE = new Map();
 
         const wordSegmenter = typeof Intl !== 'undefined' && Intl.Segmenter
             ? new Intl.Segmenter('en', { granularity: 'word' })
@@ -429,16 +433,26 @@
         const extractTokens = (text) => {
             if (!text) return [];
             if (wordSegmenter) {
-                return Array.from(wordSegmenter.segment(text))
-                    .map(segment => segment.segment)
-                    .filter(segment => /[a-z0-9]/i.test(segment));
+                try {
+                    return Array.from(wordSegmenter.segment(text))
+                        .map(segment => segment.segment)
+                        .filter(segment => /[a-z0-9]/i.test(segment));
+                } catch (error) {
+                    console.warn('Tokenizer fallback active', error);
+                }
             }
             return text.match(/[a-z0-9]+/gi) || [];
         };
 
         const porterStem = (word) => {
+            if (STEM_CACHE.has(word)) {
+                return STEM_CACHE.get(word);
+            }
             let w = word;
-            if (w.length < 3) return w;
+            if (w.length < 3) {
+                STEM_CACHE.set(word, w);
+                return w;
+            }
             const step2list = {
                 ational: 'ate',
                 tional: 'tion',
@@ -527,6 +541,7 @@
                 }
             }
             if (/ll$/.test(w) && mgr1.test(w)) w = w.replace(/ll$/, 'l');
+            STEM_CACHE.set(word, w);
             return w;
         };
 
@@ -677,7 +692,7 @@
             }
             navboostSaveTimer = setTimeout(() => {
                 saveNavboostStore();
-            }, 800);
+            }, NAVBOOST_SAVE_DELAY_MS);
         };
 
         const clearNavboostPending = () => {
@@ -951,7 +966,7 @@
             }
             scanMetaSaveTimer = setTimeout(() => {
                 saveScanMeta();
-            }, 800);
+            }, SCAN_META_SAVE_DELAY_MS);
         };
 
         const markDeepScan = (mode) => {
@@ -1020,7 +1035,7 @@
             }
             searchStateSaveTimer = setTimeout(() => {
                 saveSearchState();
-            }, 600);
+            }, SEARCH_STATE_SAVE_DELAY_MS);
         };
 
         const getActiveDataset = () => (activeMode === 'funders' ? funders : contractLeads);
@@ -1089,6 +1104,11 @@
         };
 
         const getRecordSearchId = (record) => record.id || record.meta?.searchId || buildNavboostRecordKey(record);
+
+        const buildIndexSignature = (dataset) => dataset
+            .map(record => `${getRecordSearchId(record)}:${(record.meta?.tokens || []).join(',')}`)
+            .sort()
+            .join('|');
 
         const buildInvertedIndex = (dataset) => {
             const index = new Map();
@@ -1183,6 +1203,7 @@
             return {
                 version: SEARCH_INDEX_VERSION,
                 generatedAt: new Date().toISOString(),
+                signature: buildIndexSignature(dataset),
                 docCount: inverted.docCount,
                 avgDocLength: inverted.avgDocLength,
                 docLengths: inverted.docLengths,
@@ -1194,6 +1215,7 @@
         const serializeSearchIndex = (payload) => ({
             version: payload.version,
             generatedAt: payload.generatedAt,
+            signature: payload.signature,
             docCount: payload.docCount,
             avgDocLength: payload.avgDocLength,
             docLengths: payload.docLengths,
@@ -1209,6 +1231,7 @@
             return {
                 version: payload.version,
                 generatedAt: payload.generatedAt,
+                signature: payload.signature,
                 docCount: payload.docCount || 0,
                 avgDocLength: payload.avgDocLength || 0,
                 docLengths: payload.docLengths || {},
@@ -1231,7 +1254,8 @@
                     return null;
                 }
                 const data = snapshot.data();
-                if (data.version !== SEARCH_INDEX_VERSION || data.docCount !== dataset.length) {
+                const signature = buildIndexSignature(dataset);
+                if (data.version !== SEARCH_INDEX_VERSION || data.docCount !== dataset.length || data.signature !== signature) {
                     return null;
                 }
                 return deserializeSearchIndex(data);
@@ -1746,7 +1770,7 @@
         };
 
         const matchesQueryTerms = (record, terms) => (
-            terms.every(term => record.meta.tokenSet.has(term) || record.meta.searchText.includes(term))
+            terms.every(term => record.meta.tokenSet.has(term))
         );
 
         const applySearch = (query) => {
