@@ -905,7 +905,7 @@
             if (filterState.countries.size === 0) {
                 return false;
             }
-            if (filterState.countries.size > 0 && !filterState.countries.has(record.country)) {
+            if (!filterState.countries.has(record.country)) {
                 return false;
             }
             if (filterState.category !== 'all' && record.category !== filterState.category) {
