@@ -168,9 +168,7 @@
             phraseBoost: 1.8,
             vectorBoost: 0.35
         };
-        const NAVBOOST_SAVE_DELAY_MS = 800;
-        const SCAN_META_SAVE_DELAY_MS = 800;
-        const SEARCH_STATE_SAVE_DELAY_MS = 600;
+        const PERSISTENCE_SAVE_DELAY_MS = 800;
         const FUNDING_CATEGORY_SYNONYM_SEED = {
             'Education (Schools)': ['school', 'schooling', 'education', 'learners', 'teachers', 'scholarship'],
             'Orphanage & Child Welfare': ['orphan', 'orphans', 'children home', 'childcare', 'child welfare'],
@@ -417,7 +415,7 @@
         ]);
         const STEM_CACHE = new Map();
 
-        const wordSegmenter = typeof Intl !== 'undefined' && Intl.Segmenter
+        const wordSegmenter = typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function'
             ? new Intl.Segmenter('en', { granularity: 'word' })
             : null;
 
@@ -692,7 +690,7 @@
             }
             navboostSaveTimer = setTimeout(() => {
                 saveNavboostStore();
-            }, NAVBOOST_SAVE_DELAY_MS);
+            }, PERSISTENCE_SAVE_DELAY_MS);
         };
 
         const clearNavboostPending = () => {
@@ -966,7 +964,7 @@
             }
             scanMetaSaveTimer = setTimeout(() => {
                 saveScanMeta();
-            }, SCAN_META_SAVE_DELAY_MS);
+            }, PERSISTENCE_SAVE_DELAY_MS);
         };
 
         const markDeepScan = (mode) => {
@@ -1035,7 +1033,7 @@
             }
             searchStateSaveTimer = setTimeout(() => {
                 saveSearchState();
-            }, SEARCH_STATE_SAVE_DELAY_MS);
+            }, PERSISTENCE_SAVE_DELAY_MS);
         };
 
         const getActiveDataset = () => (activeMode === 'funders' ? funders : contractLeads);
@@ -1105,10 +1103,11 @@
 
         const getRecordSearchId = (record) => record.id || record.meta?.searchId || buildNavboostRecordKey(record);
 
-        const buildIndexSignature = (dataset) => dataset
-            .map(record => `${getRecordSearchId(record)}:${(record.meta?.tokens || []).join(',')}`)
-            .sort()
-            .join('|');
+        const buildIndexSignature = (dataset) => JSON.stringify(
+            dataset
+                .map(record => [getRecordSearchId(record), record.meta?.tokens || []])
+                .sort((a, b) => a[0].localeCompare(b[0]))
+        );
 
         const buildInvertedIndex = (dataset) => {
             const index = new Map();
@@ -1255,7 +1254,16 @@
                 }
                 const data = snapshot.data();
                 const signature = buildIndexSignature(dataset);
-                if (data.version !== SEARCH_INDEX_VERSION || data.docCount !== dataset.length || data.signature !== signature) {
+                if (data.version !== SEARCH_INDEX_VERSION) {
+                    console.warn('Search index version mismatch, rebuilding.');
+                    return null;
+                }
+                if (data.docCount !== dataset.length) {
+                    console.warn('Search index document count mismatch, rebuilding.');
+                    return null;
+                }
+                if (data.signature !== signature) {
+                    console.warn('Search index signature mismatch, rebuilding.');
                     return null;
                 }
                 return deserializeSearchIndex(data);
@@ -1464,9 +1472,9 @@
             for (const entry of dataset) {
                 const prepared = prepareRecord(entry, mode);
                 const docRef = firestoreSdk.doc(collectionRef);
-                batch.set(docRef, { ...stripMeta(prepared), lastUpdated: firestoreSdk.serverTimestamp() });
                 prepared.id = docRef.id;
                 prepared.meta.searchId = docRef.id;
+                batch.set(docRef, { ...stripMeta(prepared), lastUpdated: firestoreSdk.serverTimestamp() });
                 seeded.push(prepared);
                 batchCount += 1;
                 if (batchCount === FIRESTORE_BATCH_SIZE) {
@@ -1571,7 +1579,6 @@
                     );
                     record.id = docRef.id;
                     record.meta.searchId = docRef.id;
-                    record.meta.navId = buildNavboostRecordKey(record);
                 }
             } catch (error) {
                 console.error('Firebase save failed', error);
@@ -1716,12 +1723,13 @@
 
         const hasPhraseMatch = (docId, terms, indexMap) => {
             if (terms.length < 2) return false;
-            const positionSets = terms.map(term => new Set(indexMap.get(term)?.postings.get(docId) || []));
-            if (!positionSets[0].size) return false;
-            for (const position of positionSets[0]) {
+            const positionLists = terms.map(term => indexMap.get(term)?.postings.get(docId) || []);
+            if (!positionLists[0].length) return false;
+            const positionSets = positionLists.slice(1).map(list => new Set(list));
+            for (const position of positionLists[0]) {
                 let match = true;
-                for (let i = 1; i < positionSets.length; i += 1) {
-                    if (!positionSets[i].has(position + i)) {
+                for (let i = 0; i < positionSets.length; i += 1) {
+                    if (!positionSets[i].has(position + i + 1)) {
                         match = false;
                         break;
                     }
@@ -1785,7 +1793,9 @@
                 if (!matchesFilters(record)) return false;
                 if (!terms.length) return true;
                 if (indexPayload && candidates) {
-                    return candidates.has(getRecordSearchId(record));
+                    const docId = getRecordSearchId(record);
+                    if (!candidates.has(docId)) return false;
+                    return terms.every(term => indexPayload.index.get(term)?.postings.has(docId));
                 }
                 return matchesQueryTerms(record, terms);
             });
