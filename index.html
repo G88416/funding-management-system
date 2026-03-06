@@ -207,8 +207,8 @@
             'Russia': 20
         };
         const sumCountryTargets = (targets) => Object.values(targets).reduce((total, value) => total + value, 0);
-        const FUNDING_TOTAL_TARGET = sumCountryTargets(FUNDING_COUNTRY_TARGETS);
-        const CONTRACT_TOTAL_TARGET = sumCountryTargets(CONTRACT_COUNTRY_TARGETS);
+        const FUNDERS_TOTAL_RECORDS = sumCountryTargets(FUNDING_COUNTRY_TARGETS);
+        const OPPORTUNITY_TOTAL_RECORDS = sumCountryTargets(CONTRACT_COUNTRY_TARGETS);
         const FUNDING_INTENT_TERMS = ['funding', 'grant', 'csr', 'foundation', 'donation', 'philanthropy', 'impact'];
         const CONTRACT_INTENT_TERMS = ['contract', 'tender', 'rfp', 'service', 'logistics', 'supplier', 'client'];
         const MS_PER_SECOND = 1000;
@@ -1990,11 +1990,11 @@
         const init = async () => {
             const funderOption = searchModeSelect.querySelector('option[value="funders"]');
             if (funderOption) {
-                funderOption.textContent = `${MODE_CONFIG.funders.label} (${FUNDING_TOTAL_TARGET} records)`;
+                funderOption.textContent = `${MODE_CONFIG.funders.label} (${FUNDERS_TOTAL_RECORDS} records)`;
             }
             const contractOption = searchModeSelect.querySelector('option[value="contracts"]');
             if (contractOption) {
-                contractOption.textContent = `${MODE_CONFIG.contracts.label} (${CONTRACT_TOTAL_TARGET} records)`;
+                contractOption.textContent = `${MODE_CONFIG.contracts.label} (${OPPORTUNITY_TOTAL_RECORDS} records)`;
             }
             populateSelect('newCountry', COUNTRY_OPTIONS, DEFAULT_COUNTRY);
             renderCountryFilters();
