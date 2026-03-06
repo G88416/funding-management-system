@@ -128,7 +128,7 @@
             { name: "Reliance Foundation", country: "India", category: "Youth Development", type: "Corporate", target: "Education, sports, rural transformation, health initiatives, women empowerment", website: "https://www.reliancefoundation.org/", contacts: "Via website contact form" }
         ];
 
-        const generatedCountryPlan = [
+        const SEED_COUNTRY_DISTRIBUTION = [
             { country: 'South Africa', code: 'za', count: 37 },
             { country: 'Brazil', code: 'br', count: 37 },
             { country: 'India', code: 'in', count: 37 },
@@ -139,20 +139,20 @@
 
         const generateSeedFunders = () => {
             const generated = [];
-            generatedCountryPlan.forEach(({ country, code, count }) => {
+            SEED_COUNTRY_DISTRIBUTION.forEach(({ country, code, count }) => {
                 for (let i = 1; i <= count; i += 1) {
                     const category = CATEGORY_OPTIONS[(i - 1) % CATEGORY_OPTIONS.length];
                     const type = TYPE_OPTIONS[(i - 1) % TYPE_OPTIONS.length];
                     const label = String(i).padStart(2, '0');
                     const categoryLabel = stripCategoryName(category);
-                    const slugBase = `${slugifySeed(country)}-${slugifySeed(categoryLabel)}-${label}`;
+                    const urlSlug = `${slugifySeed(country)}-${slugifySeed(categoryLabel)}-${label}`;
                     generated.push({
                         name: `${country} ${categoryLabel} Fund ${label}`,
                         country,
                         category,
                         type,
                         target: `${categoryLabel} initiatives and community partnerships in ${country}.`,
-                        website: `https://${PLACEHOLDER_DOMAIN}/${slugBase}`,
+                        website: `https://${PLACEHOLDER_DOMAIN}/${urlSlug}`,
                         contacts: `info.${code}${label}@${PLACEHOLDER_DOMAIN}`
                     });
                 }
