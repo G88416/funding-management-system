@@ -199,13 +199,17 @@
             return /^https?:\/\//i.test(trimmed) ? trimmed : '';
         };
 
-        const resolveOption = (value, options, fallback) => {
+        const applyOptionEdit = (value, options, fallback, label) => {
             if (value === null) {
                 return fallback;
             }
             const normalized = normalizeText(value);
             const match = options.find(option => normalizeText(option) === normalized);
-            return match || fallback;
+            if (!match) {
+                alert(`"${value}" is not a valid ${label}. Keeping "${fallback}".`);
+                return fallback;
+            }
+            return match;
         };
 
         const populateSelect = (selectId, options, defaultValue) => {
@@ -250,13 +254,16 @@
 
         const seedFirebase = async () => {
             const collectionRef = firestoreSdk.collection(db, 'funders');
+            const batch = firestoreSdk.writeBatch(db);
             const seeded = [];
             for (const entry of initialData) {
                 const prepared = prepareFunder(entry);
-                const docRef = await firestoreSdk.addDoc(collectionRef, { ...stripMeta(prepared), lastUpdated: firestoreSdk.serverTimestamp() });
+                const docRef = firestoreSdk.doc(collectionRef);
+                batch.set(docRef, { ...stripMeta(prepared), lastUpdated: firestoreSdk.serverTimestamp() });
                 prepared.id = docRef.id;
                 seeded.push(prepared);
             }
+            await batch.commit();
             return seeded;
         };
 
@@ -413,7 +420,7 @@
             if (funder.meta.tokenSet.has(term)) return true;
             for (const token of funder.meta.tokens) {
                 if (token.startsWith(term) || term.startsWith(token)) return true;
-                if (term.length >= 4 && token.length >= 4 && levenshteinDistance(token, term) <= 1) return true;
+                if (term.length >= 4 && token.length >= 4 && Math.abs(token.length - term.length) <= 1 && levenshteinDistance(token, term) <= 1) return true;
             }
             return funder.meta.searchText.includes(term);
         };
@@ -450,14 +457,14 @@
             const target = document.getElementById('newTarget').value.trim();
             const website = document.getElementById('newWebsite').value.trim();
             const contacts = document.getElementById('newContacts').value.trim();
-            if (name && target && country && category && type) {
+            if (name && target) {
                 const funder = prepareFunder({ name, country, category, type, target, website, contacts });
                 funders.push(funder);
                 await persistFunder(funder);
                 renderTable(funders);
                 clearInputs();
             } else {
-                alert('Name, Country, Category, Type, and Funding Target are required.');
+                alert('Name and Funding Target are required.');
             }
         };
 
@@ -471,9 +478,9 @@
             const newWebsite = prompt('Edit Website:', funder.website);
             const newContacts = prompt('Edit Contacts:', funder.contacts);
             if (newName !== null) funder.name = newName.trim();
-            if (newCountry !== null) funder.country = resolveOption(newCountry, COUNTRY_OPTIONS, funder.country);
-            if (newCategory !== null) funder.category = resolveOption(newCategory, CATEGORY_OPTIONS, funder.category);
-            if (newType !== null) funder.type = resolveOption(newType, TYPE_OPTIONS, funder.type);
+            funder.country = applyOptionEdit(newCountry, COUNTRY_OPTIONS, funder.country, 'country');
+            funder.category = applyOptionEdit(newCategory, CATEGORY_OPTIONS, funder.category, 'category');
+            funder.type = applyOptionEdit(newType, TYPE_OPTIONS, funder.type, 'funder type');
             if (newTarget !== null) funder.target = newTarget.trim();
             if (newWebsite !== null) funder.website = newWebsite.trim();
             if (newContacts !== null) funder.contacts = newContacts.trim();
