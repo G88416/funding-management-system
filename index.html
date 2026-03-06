@@ -195,9 +195,18 @@
 
         const sanitizeWebsite = (website) => {
             if (!website) return '';
-            const trimmed = website.trim();
-            return /^https?:\/\//i.test(trimmed) ? trimmed : '';
+            try {
+                const url = new URL(website.trim());
+                return (url.protocol === 'http:' || url.protocol === 'https:') ? url.toString() : '';
+            } catch (error) {
+                return '';
+            }
         };
+
+        const sanitizeEmailValue = (value) => (value || '')
+            .toString()
+            .replace(/[\r\n]+/g, ' ')
+            .trim();
 
         const applyOptionEdit = (value, options, fallback, label) => {
             if (value === null) {
@@ -254,16 +263,25 @@
 
         const seedFirebase = async () => {
             const collectionRef = firestoreSdk.collection(db, 'funders');
-            const batch = firestoreSdk.writeBatch(db);
             const seeded = [];
+            let batch = firestoreSdk.writeBatch(db);
+            let batchCount = 0;
             for (const entry of initialData) {
                 const prepared = prepareFunder(entry);
                 const docRef = firestoreSdk.doc(collectionRef);
                 batch.set(docRef, { ...stripMeta(prepared), lastUpdated: firestoreSdk.serverTimestamp() });
                 prepared.id = docRef.id;
                 seeded.push(prepared);
+                batchCount += 1;
+                if (batchCount === 500) {
+                    await batch.commit();
+                    batch = firestoreSdk.writeBatch(db);
+                    batchCount = 0;
+                }
             }
-            await batch.commit();
+            if (batchCount > 0) {
+                await batch.commit();
+            }
             return seeded;
         };
 
@@ -503,19 +521,23 @@
         };
 
         const sendEmail = (name, website, contacts, country, category) => {
-            const safeCountry = country || 'your region';
-            const safeCategory = category || 'your focus area';
-            const emailAddr = contacts && contacts.includes('@')
-                ? contacts.split(/[,; ]+/).find(c => c.includes('@')) || ''
+            const safeCountry = sanitizeEmailValue(country) || 'your region';
+            const safeCategory = sanitizeEmailValue(category) || 'your focus area';
+            const safeName = sanitizeEmailValue(name) || 'team';
+            const contactText = sanitizeEmailValue(contacts);
+            const safeWebsite = sanitizeEmailValue(website) || 'N/A';
+            const safeContacts = contactText || 'N/A';
+            const emailAddr = contactText && contactText.includes('@')
+                ? contactText.split(/[,; ]+/).find(c => c.includes('@')) || ''
                 : '';
             const subject = encodeURIComponent(`Funding Inquiry for ${safeCategory} in ${safeCountry}`);
             const body = encodeURIComponent(
-                `Dear ${name} Team,\n\n` +
+                `Dear ${safeName} Team,\n\n` +
                 `I am reaching out regarding potential funding, grants, or CSI support.\n` +
                 `Our work focuses on ${safeCategory.toLowerCase()} in ${safeCountry}.\n\n` +
                 `Relevant details:\n` +
-                `Website: ${website || 'N/A'}\n` +
-                `Contacts: ${contacts || 'N/A'}\n\n` +
+                `Website: ${safeWebsite}\n` +
+                `Contacts: ${safeContacts}\n\n` +
                 `Could you please share information on your current priorities, application process, or how we might align?\n\n` +
                 `Thank you for your time and consideration.\n` +
                 `Best regards,\nGoodness\n[Your phone/email/organisation]`
