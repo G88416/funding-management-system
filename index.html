@@ -45,7 +45,7 @@
 </head>
 <body>
     <h1>Funding Management System (Multi-Country Intelligence Search)</h1>
-    <p id="engineIntro">Run deep scans across supported regions (see country filters below). Use the advanced search console to target sectors and keywords. Data syncs to Firebase when configured.</p>
+    <p id="engineIntro">Run deep scans across supported regions. Use country filters to refine results and the advanced search console to target sectors and keywords. Data syncs to Firebase when configured.</p>
     <div id="status" class="status-warning">Firebase status: Not connected yet.</div>
 
     <section class="engine-panel">
@@ -657,17 +657,6 @@
         };
 
         const getModeConfig = (mode) => MODE_CONFIG[mode] || MODE_CONFIG.funders;
-
-        const updateEngineCopy = () => {
-            const funderOption = searchModeSelect.querySelector('option[value="funders"]');
-            if (funderOption) {
-                funderOption.textContent = `${MODE_CONFIG.funders.label} (${FUNDING_TOTAL_TARGET} records)`;
-            }
-            const contractOption = searchModeSelect.querySelector('option[value="contracts"]');
-            if (contractOption) {
-                contractOption.textContent = `${MODE_CONFIG.contracts.label} (${CONTRACT_TOTAL_TARGET} records)`;
-            }
-        };
 
         const escapeHtml = (value) => (value || '')
             .toString()
@@ -1999,7 +1988,14 @@
         };
 
         const init = async () => {
-            updateEngineCopy();
+            const funderOption = searchModeSelect.querySelector('option[value="funders"]');
+            if (funderOption) {
+                funderOption.textContent = `${MODE_CONFIG.funders.label} (${FUNDING_TOTAL_TARGET} records)`;
+            }
+            const contractOption = searchModeSelect.querySelector('option[value="contracts"]');
+            if (contractOption) {
+                contractOption.textContent = `${MODE_CONFIG.contracts.label} (${CONTRACT_TOTAL_TARGET} records)`;
+            }
             populateSelect('newCountry', COUNTRY_OPTIONS, DEFAULT_COUNTRY);
             renderCountryFilters();
             await initFirebaseSdk();
