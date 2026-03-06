@@ -76,11 +76,11 @@
                 <div id="countryFilters" class="pill-group"></div>
             </div>
             <div class="control-group">
-                <label for="categoryFilter">Need Sector Focus</label>
+                <label for="categoryFilter">Need Sector (filters needs)</label>
                 <select id="categoryFilter"></select>
             </div>
             <div class="control-group">
-                <label for="typeFilter">Funding Source Type</label>
+                <label for="typeFilter">Funding Source Type (filters matches)</label>
                 <select id="typeFilter"></select>
             </div>
             <div class="engine-actions">
@@ -140,6 +140,8 @@
             searchIndex: 'searchIndexes'
         };
         const SEARCH_INDEX_VERSION = 1;
+        const NEEDS_MODE = 'contracts';
+        const FUNDING_MODE = 'funders';
         const DEFAULT_COUNTRY = 'South Africa';
         const COUNTRY_OPTIONS = ['South Africa', 'Russia', 'China', 'Brazil', 'India'];
         const CATEGORY_OPTIONS = [
@@ -173,6 +175,10 @@
             phraseBoost: 1.8,
             vectorBoost: 0.35
         };
+        const NEED_MATCH_COUNTRY_WEIGHT = 2.5;
+        const NEED_MATCH_CATEGORY_WEIGHT = 2;
+        const TOKEN_OVERLAP_WEIGHT = 0.6;
+        const MAX_TOKEN_OVERLAP_SCORE = 3;
         const PERSISTENCE_SAVE_DELAY_MS = 800;
         const FUNDING_CATEGORY_SYNONYM_SEED = {
             'Education (Schools)': ['school', 'schooling', 'education', 'learners', 'teachers', 'scholarship'],
@@ -387,10 +393,8 @@
         const targetInputEl = document.getElementById('newTarget');
         const tableBody = document.querySelector('#matchTable tbody');
         const addRecordButton = document.getElementById('addFunderButton');
-        const NEEDS_MODE = 'contracts';
-        const FUNDING_MODE = 'funders';
         let funders = [];
-        let contractLeads = [];
+        let financingNeeds = [];
         let activeMode = NEEDS_MODE;
         let db = null;
         let firebaseReady = false;
@@ -1084,11 +1088,11 @@
             }, PERSISTENCE_SAVE_DELAY_MS);
         };
 
-        const getDatasetForMode = (mode) => (mode === FUNDING_MODE ? funders : contractLeads);
+        const getDatasetForMode = (mode) => (mode === FUNDING_MODE ? funders : financingNeeds);
 
         const getActiveDataset = () => getDatasetForMode(activeMode);
 
-        const getNeedsDataset = () => contractLeads;
+        const getNeedsDataset = () => financingNeeds;
 
         const getFundingDataset = () => funders;
 
@@ -1096,7 +1100,7 @@
             if (mode === FUNDING_MODE) {
                 funders = data;
             } else {
-                contractLeads = data;
+                financingNeeds = data;
             }
         };
 
@@ -1106,19 +1110,19 @@
             statusEl.classList.add(type === 'ready' ? 'status-ready' : type === 'error' ? 'status-error' : 'status-warning');
         };
 
-        const prepareRecord = (raw, mode = activeMode) => {
+        const prepareRecord = (rawRecord, mode = activeMode) => {
             const config = getModeConfig(mode);
             const record = {
-                id: raw.id || null,
+                id: rawRecord.id || null,
                 recordType: mode,
-                discovery: (raw.discovery || '').trim() || (mode === 'funders' ? 'Curated' : 'Deep Scan'),
-                name: (raw.name || '').trim(),
-                country: (raw.country || DEFAULT_COUNTRY).trim(),
-                category: (raw.category || config.categoryOptions[0]).trim(),
-                type: (raw.type || config.typeOptions[0]).trim(),
-                target: (raw.target || '').trim(),
-                website: (raw.website || '').trim(),
-                contacts: (raw.contacts || '').trim()
+                discovery: (rawRecord.discovery || '').trim() || (mode === FUNDING_MODE ? 'Curated' : 'Deep Scan'),
+                name: (rawRecord.name || '').trim(),
+                country: (rawRecord.country || DEFAULT_COUNTRY).trim(),
+                category: (rawRecord.category || config.categoryOptions[0]).trim(),
+                type: (rawRecord.type || config.typeOptions[0]).trim(),
+                target: (rawRecord.target || '').trim(),
+                website: (rawRecord.website || '').trim(),
+                contacts: (rawRecord.contacts || '').trim()
             };
             const categoryKey = normalizeText(record.category);
             const synonyms = (CATEGORY_SYNONYMS_BY_MODE[mode] || {})[categoryKey] || [];
@@ -1343,7 +1347,7 @@
         };
 
         const refreshSearchIndex = async (mode, forceRebuild = false) => {
-            const dataset = mode === 'funders' ? funders : contractLeads;
+            const dataset = mode === FUNDING_MODE ? funders : financingNeeds;
             if (!dataset.length) {
                 searchIndexCache[mode] = null;
                 return;
@@ -1423,34 +1427,38 @@
 
         const updateModeUI = () => {
             const config = getModeConfig(activeMode);
-            if (filterState.category !== 'all' && !CONTRACT_CATEGORY_OPTIONS.includes(filterState.category)) {
+            const needsModeConfig = getModeConfig(NEEDS_MODE);
+            const fundingModeConfig = getModeConfig(FUNDING_MODE);
+            if (filterState.category !== 'all' && !needsModeConfig.categoryOptions.includes(filterState.category)) {
                 filterState.category = 'all';
             }
-            if (filterState.type !== 'all' && !TYPE_OPTIONS.includes(filterState.type)) {
+            if (filterState.type !== 'all' && !fundingModeConfig.typeOptions.includes(filterState.type)) {
                 filterState.type = 'all';
             }
             formTitleEl.textContent = `Add / Manage ${config.label}`;
             formHelpEl.textContent = config.formHelp;
-            resultsTitleEl.textContent = UI_COPY.resultsLabel;
+            resultsTitleEl.textContent = config.resultsLabel;
             targetInputEl.placeholder = config.targetPlaceholder;
             addRecordButton.textContent = UI_COPY.addRecordButton;
             populateSelect('newCategory', config.categoryOptions, config.categoryOptions[0]);
             populateSelect('newType', config.typeOptions, config.typeOptions[0]);
-            populateFilterSelect(categoryFilterEl, CONTRACT_CATEGORY_OPTIONS, filterState.category);
-            populateFilterSelect(typeFilterEl, TYPE_OPTIONS, filterState.type);
+            populateFilterSelect(categoryFilterEl, needsModeConfig.categoryOptions, filterState.category);
+            populateFilterSelect(typeFilterEl, fundingModeConfig.typeOptions, filterState.type);
         };
 
         const updateEngineMetrics = (
             needsVisibleCount,
             needsDataset,
             matchCount,
-            queryContext = buildNavboostContext(searchInput.value, NEEDS_MODE)
+            metricsMode = activeMode
         ) => {
             const countries = new Set(needsDataset.map(record => record.country));
             const categories = new Set(needsDataset.map(record => record.category));
-            const scanStamp = scanMeta?.[NEEDS_MODE]?.lastScan;
+            const scanStamp = scanMeta?.[metricsMode]?.lastScan;
             const scanLabel = scanStamp ? new Date(scanStamp).toLocaleString() : 'Not run yet';
-            const navboostSnapshot = buildNavboostSummary(queryContext, needsDataset);
+            const navboostContext = buildNavboostContext(searchInput.value, metricsMode);
+            const navboostDataset = getDatasetForMode(metricsMode);
+            const navboostSnapshot = buildNavboostSummary(navboostContext, navboostDataset);
             const navboostLabel = navboostSnapshot.totalClicks
                 ? `${navboostSnapshot.goodClicks} good / ${navboostSnapshot.badClicks} bad`
                 : 'Awaiting signals';
@@ -1625,9 +1633,9 @@
                 try {
                     const snapshot = await firestoreSdk.getDocs(firestoreSdk.collection(db, FIREBASE_COLLECTIONS.contracts));
                     if (snapshot.empty) {
-                        contractLeads = await seedFirestoreCollection('contracts', initialContractData);
+                        financingNeeds = await seedFirestoreCollection('contracts', initialContractData);
                     } else {
-                        contractLeads = snapshot.docs.map(docSnap => prepareRecord({ id: docSnap.id, ...docSnap.data() }, 'contracts'));
+                        financingNeeds = snapshot.docs.map(docSnap => prepareRecord({ id: docSnap.id, ...docSnap.data() }, 'contracts'));
                     }
                 } catch (error) {
                     console.error('Firebase load failed', error);
@@ -1636,7 +1644,7 @@
                 }
             }
             if (!firebaseReady) {
-                contractLeads = initialContractData.map(entry => prepareRecord(entry, 'contracts'));
+                financingNeeds = initialContractData.map(entry => prepareRecord(entry, 'contracts'));
             }
             ensureScanMetaEntry('contracts');
             await refreshSearchIndex('contracts');
@@ -1648,7 +1656,7 @@
                 await refreshSearchIndex(mode, true);
                 return;
             }
-            const collectionName = mode === 'funders' ? FIREBASE_COLLECTIONS.funders : FIREBASE_COLLECTIONS.contracts;
+            const collectionName = mode === FUNDING_MODE ? FIREBASE_COLLECTIONS.funders : FIREBASE_COLLECTIONS.contracts;
             try {
                 if (record.id) {
                     await firestoreSdk.updateDoc(
@@ -1676,7 +1684,7 @@
                 await refreshSearchIndex(mode, true);
                 return;
             }
-            const collectionName = mode === 'funders' ? FIREBASE_COLLECTIONS.funders : FIREBASE_COLLECTIONS.contracts;
+            const collectionName = mode === FUNDING_MODE ? FIREBASE_COLLECTIONS.funders : FIREBASE_COLLECTIONS.contracts;
             try {
                 await firestoreSdk.deleteDoc(firestoreSdk.doc(db, collectionName, record.id));
             } catch (error) {
@@ -1752,29 +1760,32 @@
             }
             matches.forEach(({ need, match }) => {
                 const row = document.createElement('tr');
+                const matchMarkup = match
+                    ? renderRecordCard(match.record, FUNDING_MODE, formatMatchStrength(match.score))
+                    : `
+                        <div class="match-card">
+                            <div class="match-empty">No matching funding sources found yet.</div>
+                        </div>
+                    `;
                 row.innerHTML = `
                     <td class="match-cell">${renderRecordCard(need, NEEDS_MODE, 'Need')}</td>
-                    <td class="match-cell">
-                        ${match
-        ? renderRecordCard(match.record, FUNDING_MODE, formatMatchStrength(match.score))
-        : `
-                                <div class="match-card">
-                                    <div class="match-empty">No matching funding sources found yet.</div>
-                                </div>
-                            `}
-                    </td>
+                    <td class="match-cell">${matchMarkup}</td>
                 `;
                 tableBody.appendChild(row);
             });
         };
 
         const handleTableAction = (event) => {
-            const link = event.target.closest('a[data-mode][data-index]');
+            const link = event.target.closest('a');
             if (link && link.href) {
-                const datasetIndex = Number.parseInt(link.dataset.index, 10);
+                const indexValue = link.dataset.index;
+                if (!link.dataset.mode || !/^\d+$/.test(indexValue || '')) {
+                    return;
+                }
+                const datasetIndex = Number.parseInt(indexValue, 10);
                 const mode = link.dataset.mode;
                 const dataset = getDatasetForMode(mode);
-                if (Number.isNaN(datasetIndex) || datasetIndex < 0 || datasetIndex >= dataset.length) {
+                if (datasetIndex < 0 || datasetIndex >= dataset.length) {
                     return;
                 }
                 const record = dataset[datasetIndex];
@@ -1782,11 +1793,15 @@
                     registerNavboostClick(record, 'website');
                 }
             }
-            const button = event.target.closest('button[data-action][data-mode][data-index]');
+            const button = event.target.closest('button[data-action]');
             if (!button) {
                 return;
             }
-            const index = Number.parseInt(button.dataset.index, 10);
+            const indexValue = button.dataset.index;
+            if (!button.dataset.mode || !/^\d+$/.test(indexValue || '')) {
+                return;
+            }
+            const index = Number.parseInt(indexValue, 10);
             const mode = button.dataset.mode;
             const dataset = getDatasetForMode(mode);
             const record = dataset[index];
@@ -1935,13 +1950,14 @@
             };
         };
 
+        // Heuristic boost prioritizes same-country (+2.5) and same-category (+2) alignment; keyword overlap adds up to +3.
         const computeNeedMatchBoost = (need, funder) => {
             let score = 0;
             if (need.country && funder.country === need.country) {
-                score += 2.5;
+                score += NEED_MATCH_COUNTRY_WEIGHT;
             }
             if (need.category && funder.category === need.category) {
-                score += 2;
+                score += NEED_MATCH_CATEGORY_WEIGHT;
             }
             const needTokens = need.meta?.tokenSet;
             const funderTokens = funder.meta?.tokenSet;
@@ -1952,7 +1968,7 @@
                         overlap += 1;
                     }
                 });
-                score += Math.min(overlap * 0.6, 3);
+                score += Math.min(overlap * TOKEN_OVERLAP_WEIGHT, MAX_TOKEN_OVERLAP_SCORE);
             }
             return score;
         };
@@ -2018,6 +2034,7 @@
         };
 
         const applySearch = (query) => {
+            // categoryFilter refines needs while typeFilter refines funding sources for cross-stream alignment.
             const needsSearch = executeSearch(query, NEEDS_MODE, { applyCategory: true, applyType: false });
             const fundingCandidates = getFundingDataset().filter(record => (
                 matchesFilters(record, { applyCategory: false, applyType: true })
@@ -2029,7 +2046,7 @@
             }));
             renderMatchTable(matches);
             const matchCount = matches.filter(entry => entry.match).length;
-            updateEngineMetrics(needsSearch.ranked.length, needsSearch.dataset, matchCount, needsSearch.queryContext);
+            updateEngineMetrics(matches.length, needsSearch.dataset, matchCount);
             scheduleSearchStateSave();
         };
 
@@ -2126,7 +2143,7 @@
         };
 
         const runDeepScan = async () => {
-            const dataset = activeMode === 'funders' ? buildFundingDataset() : buildContractDataset();
+            const dataset = activeMode === FUNDING_MODE ? buildFundingDataset() : buildContractDataset();
             let prepared = dataset.map(entry => prepareRecord(entry, activeMode));
             if (firebaseReady) {
                 const synced = await replaceFirestoreCollection(activeMode, dataset);
