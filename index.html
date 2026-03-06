@@ -415,9 +415,15 @@
         ]);
         const STEM_CACHE = new Map();
 
-        const wordSegmenter = typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function'
-            ? new Intl.Segmenter('en', { granularity: 'word' })
-            : null;
+        let wordSegmenter = null;
+        if (typeof Intl !== 'undefined' && typeof Intl.Segmenter === 'function') {
+            try {
+                wordSegmenter = new Intl.Segmenter('en', { granularity: 'word' });
+            } catch (error) {
+                console.warn('Tokenizer segmenter unavailable', error);
+                wordSegmenter = null;
+            }
+        }
 
         const normalizeText = (text) => (text || '')
             .toString()
@@ -1467,24 +1473,34 @@
             const collectionName = mode === 'funders' ? FIREBASE_COLLECTIONS.funders : FIREBASE_COLLECTIONS.contracts;
             const collectionRef = firestoreSdk.collection(db, collectionName);
             const seeded = [];
+            let pending = [];
             let batch = firestoreSdk.writeBatch(db);
             let batchCount = 0;
             for (const entry of dataset) {
                 const prepared = prepareRecord(entry, mode);
                 const docRef = firestoreSdk.doc(collectionRef);
-                prepared.id = docRef.id;
-                prepared.meta.searchId = docRef.id;
                 batch.set(docRef, { ...stripMeta(prepared), lastUpdated: firestoreSdk.serverTimestamp() });
-                seeded.push(prepared);
+                pending.push({ prepared, docId: docRef.id });
                 batchCount += 1;
                 if (batchCount === FIRESTORE_BATCH_SIZE) {
                     await batch.commit();
+                    pending.forEach(({ prepared: record, docId }) => {
+                        record.id = docId;
+                        record.meta.searchId = docId;
+                        seeded.push(record);
+                    });
                     batch = firestoreSdk.writeBatch(db);
+                    pending = [];
                     batchCount = 0;
                 }
             }
             if (batchCount > 0) {
                 await batch.commit();
+                pending.forEach(({ prepared: record, docId }) => {
+                    record.id = docId;
+                    record.meta.searchId = docId;
+                    seeded.push(record);
+                });
             }
             return seeded;
         };
@@ -1777,9 +1793,13 @@
             return true;
         };
 
-        const matchesQueryTerms = (record, terms) => (
-            terms.every(term => record.meta.tokenSet.has(term))
-        );
+        const matchesQueryTerms = (record, terms, indexPayload = null) => {
+            if (indexPayload) {
+                const docId = getRecordSearchId(record);
+                return terms.every(term => indexPayload.index.get(term)?.postings.has(docId));
+            }
+            return terms.every(term => record.meta.tokenSet.has(term));
+        };
 
         const applySearch = (query) => {
             const queryContext = buildNavboostContext(query);
@@ -1795,7 +1815,7 @@
                 if (indexPayload && candidates) {
                     const docId = getRecordSearchId(record);
                     if (!candidates.has(docId)) return false;
-                    return terms.every(term => indexPayload.index.get(term)?.postings.has(docId));
+                    return matchesQueryTerms(record, terms, indexPayload);
                 }
                 return matchesQueryTerms(record, terms);
             });
