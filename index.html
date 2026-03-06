@@ -201,7 +201,8 @@
         const CONTRACT_INTENT_TERMS = ['contract', 'tender', 'rfp', 'service', 'logistics', 'supplier', 'client'];
         const NAVBOOST_STORAGE_KEY = 'navboostSignals';
         const NAVBOOST_PENDING_KEY = 'navboostPendingClick';
-        const NAVBOOST_WINDOW_DAYS = 395;
+        const NAVBOOST_WINDOW_MONTHS = 13;
+        const NAVBOOST_WINDOW_DAYS = Math.round(NAVBOOST_WINDOW_MONTHS * (365 / 12));
         const NAVBOOST_WINDOW_MS = NAVBOOST_WINDOW_DAYS * 24 * 60 * 60 * 1000;
         const NAVBOOST_GOOD_DWELL_MS = 30000;
         const NAVBOOST_BAD_DWELL_MS = 8000;
@@ -979,7 +980,7 @@
                     <strong>${scanLabel}</strong>
                 </div>
                 <div class="metric-card">
-                    <span>Navboost signals (13-month)</span>
+                    <span>Navboost signals (${NAVBOOST_WINDOW_MONTHS}-month)</span>
                     <strong title="${escapeHtml(navboostTitle)}">${escapeHtml(navboostLabel)}</strong>
                 </div>
             `;
@@ -1158,6 +1159,9 @@
             if (link && link.href) {
                 const row = link.closest('tr');
                 const index = Number(row?.dataset.index);
+                if (Number.isNaN(index)) {
+                    return;
+                }
                 const dataset = getActiveDataset();
                 const record = dataset[index];
                 if (record) {
