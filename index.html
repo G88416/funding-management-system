@@ -97,7 +97,18 @@
             'Youth Development': ['youth', 'skills', 'employment', 'training']
         };
 
-        const initialData = [
+        const normalizeCategoryLabel = (category) => category
+            .replace(/\s*\(.*?\)\s*/g, '')
+            .replace(/\s*&\s*/g, ' and ')
+            .replace(/\s+/g, ' ')
+            .trim();
+
+        const slugifySeed = (value) => value
+            .toLowerCase()
+            .replace(/[^a-z0-9]+/g, '-')
+            .replace(/(^-|-$)/g, '');
+
+        const seedFunders = [
             { name: "Kagiso Trust", country: "South Africa", category: "Education (Schools)", type: "Foundation", target: "Education (schools), early childhood, socio-economic development, vulnerable communities including orphans and disabled", website: "https://kagiso.co.za/", contacts: "info@kagiso.co.za" },
             { name: "Trevor Noah Foundation", country: "South Africa", category: "Education (Schools)", type: "Foundation", target: "Youth education, digital literacy, disadvantaged schools, vulnerable children", website: "https://trevornoahfoundation.org/", contacts: "info@trevornoahfoundation.org" },
             { name: "Spur Foundation (Spur Corporation - JSE listed)", country: "South Africa", category: "Orphanage & Child Welfare", type: "Listed Company", target: "Vulnerable families, nutrition for children, early childhood education, orphan support via NGOs", website: "https://www.spurfoundation.co.za/", contacts: "spurfoundation@spur.co.za" },
@@ -116,6 +127,40 @@
             { name: "Tata Trusts", country: "India", category: "Community Health", type: "Foundation", target: "Healthcare access, education, rural livelihoods, nutrition, water and sanitation", website: "https://www.tatatrusts.org/", contacts: "Via website contact form" },
             { name: "Reliance Foundation", country: "India", category: "Youth Development", type: "Corporate", target: "Education, sports, rural transformation, health initiatives, women empowerment", website: "https://www.reliancefoundation.org/", contacts: "Via website contact form" }
         ];
+
+        const SEED_COUNTRY_DISTRIBUTION = [
+            { country: 'South Africa', code: 'za', count: 37 },
+            { country: 'Brazil', code: 'br', count: 37 },
+            { country: 'India', code: 'in', count: 37 },
+            { country: 'China', code: 'cn', count: 36 },
+            { country: 'Russia', code: 'ru', count: 36 }
+        ];
+        const PLACEHOLDER_DOMAIN = 'placeholder-funders.example.com';
+
+        const generateSeedFunders = () => {
+            const generated = [];
+            SEED_COUNTRY_DISTRIBUTION.forEach(({ country, code, count }) => {
+                for (let i = 1; i <= count; i += 1) {
+                    const category = CATEGORY_OPTIONS[(i - 1) % CATEGORY_OPTIONS.length];
+                    const type = TYPE_OPTIONS[(i - 1) % TYPE_OPTIONS.length];
+                    const label = String(i).padStart(2, '0');
+                    const categoryLabel = normalizeCategoryLabel(category);
+                    const urlSlug = `${slugifySeed(country)}-${slugifySeed(categoryLabel)}-${label}`;
+                    generated.push({
+                        name: `${country} ${categoryLabel} Fund ${label}`,
+                        country,
+                        category,
+                        type,
+                        target: `${categoryLabel} initiatives and community partnerships in ${country}.`,
+                        website: `https://${PLACEHOLDER_DOMAIN}/${urlSlug}`,
+                        contacts: `info.${code}${label}@${PLACEHOLDER_DOMAIN}`
+                    });
+                }
+            });
+            return generated;
+        };
+
+        const initialData = [...seedFunders, ...generateSeedFunders()];
 
         const statusEl = document.getElementById('status');
         const searchInput = document.getElementById('search');
