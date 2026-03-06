@@ -211,8 +211,6 @@
         const CONTRACT_TOTAL_TARGET = sumCountryTargets(CONTRACT_COUNTRY_TARGETS);
         const FUNDING_INTENT_TERMS = ['funding', 'grant', 'csr', 'foundation', 'donation', 'philanthropy', 'impact'];
         const CONTRACT_INTENT_TERMS = ['contract', 'tender', 'rfp', 'service', 'logistics', 'supplier', 'client'];
-        const DEFAULT_RESULTS_LABEL = 'Search Results';
-        const DEFAULT_FORM_HELP = 'Add new records to the active engine.';
         const MS_PER_SECOND = 1000;
         const MS_PER_MINUTE = 60 * MS_PER_SECOND;
         const MS_PER_HOUR = 60 * MS_PER_MINUTE;
@@ -627,14 +625,19 @@
             )
         };
 
+        const UI_LABELS = {
+            results: 'Search Results',
+            formHelp: 'Add new records to the active engine.'
+        };
+
         const MODE_CONFIG = {
             funders: {
                 label: 'Funding Intelligence',
-                resultsLabel: DEFAULT_RESULTS_LABEL,
+                resultsLabel: UI_LABELS.results,
                 typeLabel: 'Record Type',
                 targetLabel: 'Target',
                 targetPlaceholder: 'Target (e.g., focus areas, regions)',
-                formHelp: DEFAULT_FORM_HELP,
+                formHelp: UI_LABELS.formHelp,
                 categoryOptions: CATEGORY_OPTIONS,
                 typeOptions: TYPE_OPTIONS,
                 intentTerms: FUNDING_INTENT_TERMS,
@@ -644,11 +647,11 @@
             },
             contracts: {
                 label: 'Opportunity Leads',
-                resultsLabel: DEFAULT_RESULTS_LABEL,
+                resultsLabel: UI_LABELS.results,
                 typeLabel: 'Opportunity Type',
                 targetLabel: 'Need',
                 targetPlaceholder: 'Need (e.g., focus areas, requirements)',
-                formHelp: DEFAULT_FORM_HELP,
+                formHelp: UI_LABELS.formHelp,
                 categoryOptions: CONTRACT_CATEGORY_OPTIONS,
                 typeOptions: CONTRACT_TYPE_OPTIONS,
                 intentTerms: CONTRACT_INTENT_TERMS,
@@ -661,12 +664,6 @@
         const getModeConfig = (mode) => MODE_CONFIG[mode] || MODE_CONFIG.funders;
 
         const updateEngineCopy = () => {
-            const countryList = formatCountryList(COUNTRY_OPTIONS);
-            if (engineIntroEl) {
-                engineIntroEl.textContent =
-                    `Run deep scans across ${countryList}. ` +
-                    'Use the advanced search console to target sectors and keywords. Data syncs to Firebase when configured.';
-            }
             const funderOption = searchModeSelect.querySelector('option[value="funders"]');
             if (funderOption) {
                 funderOption.textContent = `${MODE_CONFIG.funders.label} (${FUNDING_TOTAL_TARGET} records)`;
