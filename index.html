@@ -201,12 +201,18 @@
         const CONTRACT_INTENT_TERMS = ['contract', 'tender', 'rfp', 'service', 'logistics', 'supplier', 'client'];
         const NAVBOOST_STORAGE_KEY = 'navboostSignals';
         const NAVBOOST_PENDING_KEY = 'navboostPendingClick';
+        const MS_PER_SECOND = 1000;
+        const MS_PER_MINUTE = 60 * MS_PER_SECOND;
+        const MS_PER_HOUR = 60 * MS_PER_MINUTE;
+        const MS_PER_DAY = 24 * MS_PER_HOUR;
         const NAVBOOST_WINDOW_MONTHS = 13;
-        const NAVBOOST_WINDOW_DAYS = Math.round(NAVBOOST_WINDOW_MONTHS * (365.25 / 12));
-        const NAVBOOST_WINDOW_MS = NAVBOOST_WINDOW_DAYS * 24 * 60 * 60 * 1000;
+        const NAVBOOST_DAYS_PER_MONTH = 365.25 / 12;
+        const NAVBOOST_WINDOW_DAYS = Math.round(NAVBOOST_WINDOW_MONTHS * NAVBOOST_DAYS_PER_MONTH);
+        const NAVBOOST_WINDOW_MS = NAVBOOST_WINDOW_DAYS * MS_PER_DAY;
         const NAVBOOST_GOOD_DWELL_MS = 30000;
         const NAVBOOST_BAD_DWELL_MS = 8000;
-        const NAVBOOST_MAX_DWELL_MS = 5 * 60 * 1000;
+        const NAVBOOST_EMAIL_DWELL_MS = 15000;
+        const NAVBOOST_MAX_DWELL_MS = 5 * MS_PER_MINUTE;
         const NAVBOOST_MAX_EVENTS = 3000;
         const NAVBOOST_WEIGHTS = {
             goodClick: 2.4,
@@ -648,7 +654,11 @@
             if (!navboostPending) {
                 return;
             }
-            const dwellMsRaw = Math.max(Date.now() - (navboostPending.startedAt || Date.now()), 0);
+            if (!navboostPending.startedAt) {
+                clearNavboostPending();
+                return;
+            }
+            const dwellMsRaw = Math.max(Date.now() - navboostPending.startedAt, 0);
             const dwellMs = Math.min(dwellMsRaw, NAVBOOST_MAX_DWELL_MS);
             recordNavboostInteraction(navboostPending, dwellMs);
             clearNavboostPending();
@@ -658,7 +668,7 @@
             if (!stats || stats.totalClicks === 0) {
                 return 0;
             }
-            const avgDwellSeconds = stats.totalDwellMs / stats.totalClicks / 1000;
+            const avgDwellSeconds = stats.totalDwellMs / stats.totalClicks / MS_PER_SECOND;
             const satisfactionRatio = (stats.goodClicks - stats.badClicks) / stats.totalClicks;
             return (
                 stats.goodClicks * NAVBOOST_WEIGHTS.goodClick +
@@ -681,18 +691,19 @@
                 queryKey: context.queryKey,
                 recordId
             });
-            const clusterKey = buildNavboostKey({
-                mode: context.mode,
-                device: context.device,
-                region: context.region,
-                variant: NAVBOOST_VARIANTS.cluster,
-                queryKey: context.clusterKey,
-                recordId
-            });
             const exactScore = calculateNavboostScore(navboostIndex.get(exactKey));
-            const clusterScore = context.clusterKey && context.clusterKey !== context.queryKey
-                ? calculateNavboostScore(navboostIndex.get(clusterKey)) * NAVBOOST_WEIGHTS.clusterScale
-                : 0;
+            let clusterScore = 0;
+            if (context.clusterKey && context.clusterKey !== context.queryKey) {
+                const clusterKey = buildNavboostKey({
+                    mode: context.mode,
+                    device: context.device,
+                    region: context.region,
+                    variant: NAVBOOST_VARIANTS.cluster,
+                    queryKey: context.clusterKey,
+                    recordId
+                });
+                clusterScore = calculateNavboostScore(navboostIndex.get(clusterKey)) * NAVBOOST_WEIGHTS.clusterScale;
+            }
             const lastLongestKey = buildNavboostQueryKey({
                 mode: context.mode,
                 device: context.device,
@@ -980,7 +991,7 @@
                     <strong>${scanLabel}</strong>
                 </div>
                 <div class="metric-card">
-                    <span>Navboost signals (${NAVBOOST_WINDOW_MONTHS}-month${NAVBOOST_WINDOW_MONTHS === 1 ? '' : 's'})</span>
+                    <span>Navboost signals (${NAVBOOST_WINDOW_MONTHS} months)</span>
                     <strong title="${escapeHtml(navboostTitle)}">${escapeHtml(navboostLabel)}</strong>
                 </div>
             `;
@@ -1158,7 +1169,11 @@
             const link = event.target.closest('a');
             if (link && link.href) {
                 const row = link.closest('tr');
-                const datasetIndex = Number(row?.dataset.index);
+                const rowIndex = row?.dataset?.index;
+                if (rowIndex === undefined) {
+                    return;
+                }
+                const datasetIndex = Number(rowIndex);
                 if (Number.isNaN(datasetIndex)) {
                     return;
                 }
@@ -1185,7 +1200,7 @@
                 deleteRecord(index);
             } else if (action === 'email') {
                 const website = sanitizeWebsite(record.website);
-                registerNavboostClick(record, 'email', NAVBOOST_GOOD_DWELL_MS);
+                registerNavboostClick(record, 'email', NAVBOOST_EMAIL_DWELL_MS);
                 sendEmail(record, website);
             }
         };
