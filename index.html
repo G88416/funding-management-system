@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Funding Management System - Global Intelligence (Updated 2026)</title>
+    <title>Finance & Opportunity Search Engine (Updated 2026)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #f9f9f9; }
         h1 { color: #2c3e50; }
@@ -41,24 +41,34 @@
         .metric-card strong { font-size: 18px; color: #111827; }
         .search-row { margin-bottom: 12px; }
         .form-help { margin-top: -6px; margin-bottom: 10px; color: #4b5563; font-size: 14px; }
+        .match-table th { text-transform: uppercase; letter-spacing: 0.03em; }
+        .match-cell { vertical-align: top; width: 50%; }
+        .match-card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08); }
+        .match-card-header { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
+        .match-card-title { font-weight: 700; color: #1f2937; }
+        .match-badge { font-size: 11px; text-transform: uppercase; letter-spacing: 0.04em; background: #e0f2fe; color: #0369a1; padding: 2px 8px; border-radius: 999px; }
+        .match-meta { font-size: 13px; color: #4b5563; }
+        .match-meta strong { color: #111827; }
+        .match-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+        .match-empty { color: #6b7280; font-style: italic; }
     </style>
 </head>
 <body>
-    <h1>Funding Management System (Multi-Country Intelligence Search)</h1>
-    <p id="engineIntro">Run deep scans across supported regions. Use country filters to refine results and the advanced search console to target sectors and keywords. Data syncs to Firebase when configured.</p>
+    <h1>Finance & Opportunity Search Engine</h1>
+    <p id="engineIntro">Search for companies and projects that need financing while the engine surfaces matching investors and grants in parallel.</p>
     <div id="status" class="status-warning">Firebase status: Not connected yet.</div>
 
     <section class="engine-panel">
         <div class="engine-header">
-            <h2>Deep Intelligence Engine</h2>
-            <p>State-of-the-art matching blends curated intelligence, deep-scan generated leads, and Navboost-style satisfaction signals. Switch modes to surface the right opportunities.</p>
+            <h2>Finance Match Intelligence Engine</h2>
+            <p>Blend curated intelligence, deep-scan generated opportunities, and Navboost-style satisfaction signals to match financing needs with funding sources.</p>
         </div>
         <div class="engine-controls">
             <div class="control-group">
-                <label for="searchMode">Search Engine Mode</label>
+                <label for="searchMode">Record Management Focus</label>
                 <select id="searchMode">
-                    <option value="funders">Funding Intelligence</option>
-                    <option value="contracts">Opportunity Leads</option>
+                    <option value="funders">Funding Sources</option>
+                    <option value="contracts">Financing Needs</option>
                 </select>
             </div>
             <div class="control-group">
@@ -66,11 +76,11 @@
                 <div id="countryFilters" class="pill-group"></div>
             </div>
             <div class="control-group">
-                <label for="categoryFilter">Sector Focus</label>
+                <label for="categoryFilter">Need Sector Focus</label>
                 <select id="categoryFilter"></select>
             </div>
             <div class="control-group">
-                <label for="typeFilter">Type Focus</label>
+                <label for="typeFilter">Funding Source Type</label>
                 <select id="typeFilter"></select>
             </div>
             <div class="engine-actions">
@@ -82,38 +92,32 @@
     </section>
 
     <div class="search-row">
-        <input type="text" id="search" placeholder="Describe your search focus or opportunity needs...">
+        <input type="text" id="search" placeholder="Describe financing needs or target investment focus...">
     </div>
 
-    <h2 id="resultsTitle">Search Results</h2>
+    <h2 id="resultsTitle">Financing Need Matches</h2>
 
-    <table id="fundersTable">
+    <table id="matchTable" class="match-table">
         <thead>
             <tr>
-                <th>Name</th>
-                <th>Country</th>
-                <th>Category</th>
-                <th id="tableTypeHeader">Record Type</th>
-                <th id="tableTargetHeader">Target</th>
-                <th>Website</th>
-                <th>Contacts</th>
-                <th>Actions</th>
+                <th>Financing Needs (Companies & Projects)</th>
+                <th>Matching Funding Sources (Investors & Grants)</th>
             </tr>
         </thead>
         <tbody></tbody>
     </table>
 
-    <h2 id="formTitle">Add / Manage Record</h2>
-    <p id="formHelp" class="form-help">Add new records to the active engine.</p>
+    <h2 id="formTitle">Add / Manage Records</h2>
+    <p id="formHelp" class="form-help">Add financing needs or funding sources to the selected stream.</p>
     <div id="addForm">
         <input type="text" id="newName" placeholder="Name (required)">
         <select id="newCountry"></select>
         <select id="newCategory"></select>
         <select id="newType"></select>
-        <input type="text" id="newTarget" placeholder="Target (e.g., focus areas, regions)">
+        <input type="text" id="newTarget" placeholder="Need or funding focus (e.g., capital required, grant priorities)">
         <input type="text" id="newWebsite" placeholder="Website (https://...)">
         <input type="text" id="newContacts" placeholder="Contacts (email/phone)">
-        <button id="addFunderButton">Add New Record</button>
+        <button id="addFunderButton">Add Record to Selected Stream</button>
     </div>
 
     <script>
@@ -377,17 +381,17 @@
         const runDeepScanButton = document.getElementById('runDeepScan');
         const clearFiltersButton = document.getElementById('clearFilters');
         const engineMetricsEl = document.getElementById('engineMetrics');
-        const tableTypeHeaderEl = document.getElementById('tableTypeHeader');
-        const tableTargetHeaderEl = document.getElementById('tableTargetHeader');
         const formTitleEl = document.getElementById('formTitle');
         const formHelpEl = document.getElementById('formHelp');
         const resultsTitleEl = document.getElementById('resultsTitle');
         const targetInputEl = document.getElementById('newTarget');
-        const tableBody = document.querySelector('#fundersTable tbody');
+        const tableBody = document.querySelector('#matchTable tbody');
         const addRecordButton = document.getElementById('addFunderButton');
+        const NEEDS_MODE = 'contracts';
+        const FUNDING_MODE = 'funders';
         let funders = [];
         let contractLeads = [];
-        let activeMode = 'funders';
+        let activeMode = NEEDS_MODE;
         let db = null;
         let firebaseReady = false;
         let firebaseSdk = null;
@@ -626,40 +630,40 @@
         };
 
         const UI_COPY = {
-            engineIntro: 'Run deep scans across supported regions. Use country filters to refine results and the advanced search console to target sectors and keywords. Data syncs to Firebase when configured.',
-            resultsLabel: 'Search Results',
-            formHelp: 'Add new records to the active engine.',
-            addRecordButton: 'Add New Record'
+            engineIntro: 'Search for companies and projects that need financing while the engine surfaces matching investors and grants in parallel.',
+            resultsLabel: 'Financing Need Matches',
+            formHelp: 'Add financing needs or funding sources to the selected stream.',
+            addRecordButton: 'Add Record to Selected Stream'
         };
 
         const MODE_CONFIG = {
             funders: {
-                label: 'Funding Intelligence',
+                label: 'Funding Sources',
                 resultsLabel: UI_COPY.resultsLabel,
-                typeLabel: 'Record Type',
-                targetLabel: 'Target',
-                targetPlaceholder: 'Target (e.g., focus areas, regions)',
+                typeLabel: 'Funding Source Type',
+                targetLabel: 'Funding Focus',
+                targetPlaceholder: 'Funding focus (e.g., grant priorities, investment areas)',
                 formHelp: UI_COPY.formHelp,
                 categoryOptions: CATEGORY_OPTIONS,
                 typeOptions: TYPE_OPTIONS,
                 intentTerms: FUNDING_INTENT_TERMS,
                 weights: { name: 6, category: 4, country: 4, type: 3, target: 3, search: 2, intent: 3, phrase: 5 },
-                emailSubject: 'Funding Inquiry',
-                emailIntro: 'I am reaching out regarding potential funding, grants, or CSI support.'
+                emailSubject: 'Funding Partnership',
+                emailIntro: 'I am reaching out regarding potential funding, grants, or investment support.'
             },
             contracts: {
-                label: 'Opportunity Leads',
+                label: 'Financing Needs',
                 resultsLabel: UI_COPY.resultsLabel,
-                typeLabel: 'Opportunity Type',
-                targetLabel: 'Need',
-                targetPlaceholder: 'Need (e.g., focus areas, requirements)',
+                typeLabel: 'Need Type',
+                targetLabel: 'Financing Need',
+                targetPlaceholder: 'Financing need (e.g., capital required, expansion goals)',
                 formHelp: UI_COPY.formHelp,
                 categoryOptions: CONTRACT_CATEGORY_OPTIONS,
                 typeOptions: CONTRACT_TYPE_OPTIONS,
                 intentTerms: CONTRACT_INTENT_TERMS,
                 weights: { name: 5, category: 5, country: 4, type: 3, target: 4, search: 2, intent: 4, phrase: 5 },
-                emailSubject: 'Opportunity Response',
-                emailIntro: 'I am responding to this opportunity and would like to align capabilities.'
+                emailSubject: 'Financing Opportunity',
+                emailIntro: 'I am responding to this financing need and would like to align funding support.'
             }
         };
 
@@ -1080,10 +1084,16 @@
             }, PERSISTENCE_SAVE_DELAY_MS);
         };
 
-        const getActiveDataset = () => (activeMode === 'funders' ? funders : contractLeads);
+        const getDatasetForMode = (mode) => (mode === FUNDING_MODE ? funders : contractLeads);
+
+        const getActiveDataset = () => getDatasetForMode(activeMode);
+
+        const getNeedsDataset = () => contractLeads;
+
+        const getFundingDataset = () => funders;
 
         const setDatasetForMode = (mode, data) => {
-            if (mode === 'funders') {
+            if (mode === FUNDING_MODE) {
                 funders = data;
             } else {
                 contractLeads = data;
@@ -1413,32 +1423,34 @@
 
         const updateModeUI = () => {
             const config = getModeConfig(activeMode);
-            if (filterState.category !== 'all' && !config.categoryOptions.includes(filterState.category)) {
+            if (filterState.category !== 'all' && !CONTRACT_CATEGORY_OPTIONS.includes(filterState.category)) {
                 filterState.category = 'all';
             }
-            if (filterState.type !== 'all' && !config.typeOptions.includes(filterState.type)) {
+            if (filterState.type !== 'all' && !TYPE_OPTIONS.includes(filterState.type)) {
                 filterState.type = 'all';
             }
-            tableTypeHeaderEl.textContent = config.typeLabel;
-            tableTargetHeaderEl.textContent = config.targetLabel;
             formTitleEl.textContent = `Add / Manage ${config.label}`;
             formHelpEl.textContent = config.formHelp;
-            resultsTitleEl.textContent = config.resultsLabel;
+            resultsTitleEl.textContent = UI_COPY.resultsLabel;
             targetInputEl.placeholder = config.targetPlaceholder;
             addRecordButton.textContent = UI_COPY.addRecordButton;
             populateSelect('newCategory', config.categoryOptions, config.categoryOptions[0]);
             populateSelect('newType', config.typeOptions, config.typeOptions[0]);
-            populateFilterSelect(categoryFilterEl, config.categoryOptions, filterState.category);
-            populateFilterSelect(typeFilterEl, config.typeOptions, filterState.type);
+            populateFilterSelect(categoryFilterEl, CONTRACT_CATEGORY_OPTIONS, filterState.category);
+            populateFilterSelect(typeFilterEl, TYPE_OPTIONS, filterState.type);
         };
 
-        const updateEngineMetrics = (visibleCount, dataset, queryContext = buildNavboostContext(searchInput.value)) => {
-            const config = getModeConfig(activeMode);
-            const countries = new Set(dataset.map(record => record.country));
-            const categories = new Set(dataset.map(record => record.category));
-            const scanStamp = scanMeta?.[activeMode]?.lastScan;
+        const updateEngineMetrics = (
+            needsVisibleCount,
+            needsDataset,
+            matchCount,
+            queryContext = buildNavboostContext(searchInput.value, NEEDS_MODE)
+        ) => {
+            const countries = new Set(needsDataset.map(record => record.country));
+            const categories = new Set(needsDataset.map(record => record.category));
+            const scanStamp = scanMeta?.[NEEDS_MODE]?.lastScan;
             const scanLabel = scanStamp ? new Date(scanStamp).toLocaleString() : 'Not run yet';
-            const navboostSnapshot = buildNavboostSummary(queryContext, dataset);
+            const navboostSnapshot = buildNavboostSummary(queryContext, needsDataset);
             const navboostLabel = navboostSnapshot.totalClicks
                 ? `${navboostSnapshot.goodClicks} good / ${navboostSnapshot.badClicks} bad`
                 : 'Awaiting signals';
@@ -1447,8 +1459,12 @@
                 : 'No long-click leader yet';
             engineMetricsEl.innerHTML = `
                 <div class="metric-card">
-                    <span>${config.label} results</span>
-                    <strong>${visibleCount} / ${dataset.length}</strong>
+                    <span>Financing needs</span>
+                    <strong>${needsVisibleCount} / ${needsDataset.length}</strong>
+                </div>
+                <div class="metric-card">
+                    <span>Funding matches</span>
+                    <strong>${matchCount} / ${getFundingDataset().length}</strong>
                 </div>
                 <div class="metric-card">
                     <span>Country coverage</span>
@@ -1521,7 +1537,7 @@
         };
 
         const seedFirestoreCollection = async (mode, dataset) => {
-            const collectionName = mode === 'funders' ? FIREBASE_COLLECTIONS.funders : FIREBASE_COLLECTIONS.contracts;
+            const collectionName = mode === FUNDING_MODE ? FIREBASE_COLLECTIONS.funders : FIREBASE_COLLECTIONS.contracts;
             const collectionRef = firestoreSdk.collection(db, collectionName);
             const seeded = [];
             let pending = [];
@@ -1560,7 +1576,7 @@
             if (!firebaseReady) {
                 return null;
             }
-            const collectionName = mode === 'funders' ? FIREBASE_COLLECTIONS.funders : FIREBASE_COLLECTIONS.contracts;
+            const collectionName = mode === FUNDING_MODE ? FIREBASE_COLLECTIONS.funders : FIREBASE_COLLECTIONS.contracts;
             const collectionRef = firestoreSdk.collection(db, collectionName);
             const snapshot = await firestoreSdk.getDocs(collectionRef);
             if (!snapshot.empty) {
@@ -1670,27 +1686,82 @@
             await refreshSearchIndex(mode, true);
         };
 
-        const renderTable = (data) => {
-            const dataset = getActiveDataset();
+        const formatMatchStrength = (score) => {
+            if (!Number.isFinite(score)) {
+                return 'Match';
+            }
+            if (score >= 12) {
+                return 'Strong Match';
+            }
+            if (score >= 6) {
+                return 'Good Match';
+            }
+            return 'Potential Match';
+        };
+
+        const renderRecordCard = (record, mode, badgeText) => {
+            const dataset = getDatasetForMode(mode);
+            const datasetIndex = dataset.indexOf(record);
+            const config = getModeConfig(mode);
+            const website = sanitizeWebsite(record.website);
+            const safeWebsite = website
+                ? `<a href="${website}" target="_blank" rel="noopener noreferrer" data-mode="${mode}" data-index="${datasetIndex}">${escapeHtml(website)}</a>`
+                : 'N/A';
+            const actions = datasetIndex >= 0
+                ? `
+                    <button class="edit-btn" data-action="edit" data-mode="${mode}" data-index="${datasetIndex}">Edit</button>
+                    <button class="delete-btn" data-action="delete" data-mode="${mode}" data-index="${datasetIndex}">Delete</button>
+                    <button class="email-btn" data-action="email" data-mode="${mode}" data-index="${datasetIndex}">Email</button>
+                `
+                : '';
+            return `
+                <div class="match-card">
+                    <div class="match-card-header">
+                        <div class="match-card-title">${escapeHtml(record.name)}</div>
+                        <span class="match-badge">${escapeHtml(badgeText)}</span>
+                    </div>
+                    <div class="match-meta"><strong>Country:</strong> ${escapeHtml(record.country)}</div>
+                    <div class="match-meta"><strong>Sector:</strong> ${escapeHtml(record.category)}</div>
+                    <div class="match-meta"><strong>${escapeHtml(config.typeLabel)}:</strong> ${escapeHtml(record.type)}</div>
+                    <div class="match-meta"><strong>${escapeHtml(config.targetLabel)}:</strong> ${escapeHtml(record.target || 'N/A')}</div>
+                    <div class="match-meta"><strong>Website:</strong> ${safeWebsite}</div>
+                    <div class="match-meta"><strong>Contacts:</strong> ${escapeHtml(record.contacts || 'N/A')}</div>
+                    <div class="match-actions">${actions}</div>
+                </div>
+            `;
+        };
+
+        const renderMatchTable = (matches) => {
             tableBody.innerHTML = '';
-            data.forEach((record) => {
+            if (!matches.length) {
+                tableBody.innerHTML = `
+                    <tr>
+                        <td class="match-cell">
+                            <div class="match-card">
+                                <div class="match-empty">No financing needs match the current filters.</div>
+                            </div>
+                        </td>
+                        <td class="match-cell">
+                            <div class="match-card">
+                                <div class="match-empty">Adjust filters or refine the prompt to surface funding matches.</div>
+                            </div>
+                        </td>
+                    </tr>
+                `;
+                return;
+            }
+            matches.forEach(({ need, match }) => {
                 const row = document.createElement('tr');
-                const datasetIndex = dataset.indexOf(record);
-                row.dataset.recordIndex = datasetIndex;
-                const website = sanitizeWebsite(record.website);
-                const safeWebsite = website ? `<a href="${website}" target="_blank" rel="noopener noreferrer">${escapeHtml(website)}</a>` : 'N/A';
                 row.innerHTML = `
-                    <td>${escapeHtml(record.name)}</td>
-                    <td>${escapeHtml(record.country)}</td>
-                    <td>${escapeHtml(record.category)}</td>
-                    <td>${escapeHtml(record.type)}</td>
-                    <td>${escapeHtml(record.target || 'N/A')}</td>
-                    <td>${safeWebsite}</td>
-                    <td>${escapeHtml(record.contacts || 'N/A')}</td>
-                    <td>
-                        <button class="edit-btn" data-action="edit" data-index="${datasetIndex}">Edit</button>
-                        <button class="delete-btn" data-action="delete" data-index="${datasetIndex}">Delete</button>
-                        <button class="email-btn" data-action="email" data-index="${datasetIndex}">Email</button>
+                    <td class="match-cell">${renderRecordCard(need, NEEDS_MODE, 'Need')}</td>
+                    <td class="match-cell">
+                        ${match
+        ? renderRecordCard(match.record, FUNDING_MODE, formatMatchStrength(match.score))
+        : `
+                                <div class="match-card">
+                                    <div class="match-empty">No matching funding sources found yet.</div>
+                                </div>
+                            `}
                     </td>
                 `;
                 tableBody.appendChild(row);
@@ -1698,16 +1769,12 @@
         };
 
         const handleTableAction = (event) => {
-            const link = event.target.closest('a');
+            const link = event.target.closest('a[data-mode][data-index]');
             if (link && link.href) {
-                const row = link.closest('tr');
-                const rowIndex = row?.dataset?.recordIndex;
-                if (rowIndex === undefined || !/^\d+$/.test(rowIndex)) {
-                    return;
-                }
-                const datasetIndex = Number.parseInt(rowIndex, 10);
-                const dataset = getActiveDataset();
-                if (datasetIndex < 0 || datasetIndex >= dataset.length) {
+                const datasetIndex = Number.parseInt(link.dataset.index, 10);
+                const mode = link.dataset.mode;
+                const dataset = getDatasetForMode(mode);
+                if (Number.isNaN(datasetIndex) || datasetIndex < 0 || datasetIndex >= dataset.length) {
                     return;
                 }
                 const record = dataset[datasetIndex];
@@ -1715,21 +1782,22 @@
                     registerNavboostClick(record, 'website');
                 }
             }
-            const button = event.target.closest('button[data-action]');
+            const button = event.target.closest('button[data-action][data-mode][data-index]');
             if (!button) {
                 return;
             }
-            const index = Number(button.dataset.index);
-            const dataset = getActiveDataset();
+            const index = Number.parseInt(button.dataset.index, 10);
+            const mode = button.dataset.mode;
+            const dataset = getDatasetForMode(mode);
             const record = dataset[index];
             if (!record) {
                 return;
             }
             const action = button.dataset.action;
             if (action === 'edit') {
-                editRecord(index);
+                editRecord(index, mode);
             } else if (action === 'delete') {
-                deleteRecord(index);
+                deleteRecord(index, mode);
             } else if (action === 'email') {
                 const website = sanitizeWebsite(record.website);
                 registerNavboostClick(record, 'email', NAVBOOST_NEUTRAL_DWELL_MS);
@@ -1828,17 +1896,17 @@
             return bm25Score + phraseBoost + (vectorScore * BM25_CONFIG.vectorBoost) + getNavboostScore(record, context);
         };
 
-        const matchesFilters = (record) => {
+        const matchesFilters = (record, { applyCategory = true, applyType = true } = {}) => {
             if (filterState.countries.size === 0) {
                 return false;
             }
             if (!filterState.countries.has(record.country)) {
                 return false;
             }
-            if (filterState.category !== 'all' && record.category !== filterState.category) {
+            if (applyCategory && filterState.category !== 'all' && record.category !== filterState.category) {
                 return false;
             }
-            if (filterState.type !== 'all' && record.type !== filterState.type) {
+            if (applyType && filterState.type !== 'all' && record.type !== filterState.type) {
                 return false;
             }
             return true;
@@ -1852,16 +1920,53 @@
             return terms.every(term => tokenSet.has(term));
         };
 
-        const applySearch = (query) => {
-            const queryContext = buildNavboostContext(query);
+        const buildMatchContextFromRecord = (record, mode) => {
+            const composite = [record.name, record.category, record.type, record.target]
+                .filter(Boolean)
+                .join(' ');
+            const terms = tokenize(composite);
+            return {
+                terms,
+                queryKey: buildQueryKey(terms),
+                clusterKey: buildQueryClusterKey(terms),
+                device: getDeviceContext(),
+                region: record.country || getRegionContext(),
+                mode
+            };
+        };
+
+        const computeNeedMatchBoost = (need, funder) => {
+            let score = 0;
+            if (need.country && funder.country === need.country) {
+                score += 2.5;
+            }
+            if (need.category && funder.category === need.category) {
+                score += 2;
+            }
+            const needTokens = need.meta?.tokenSet;
+            const funderTokens = funder.meta?.tokenSet;
+            if (needTokens && funderTokens) {
+                let overlap = 0;
+                needTokens.forEach(token => {
+                    if (funderTokens.has(token)) {
+                        overlap += 1;
+                    }
+                });
+                score += Math.min(overlap * 0.6, 3);
+            }
+            return score;
+        };
+
+        const executeSearch = (query, mode, filterOptions) => {
+            const queryContext = buildNavboostContext(query, mode);
             const { terms } = queryContext;
-            const dataset = getActiveDataset();
-            const indexPayload = searchIndexCache[activeMode];
+            const dataset = getDatasetForMode(mode);
+            const indexPayload = searchIndexCache[mode];
             const indexMap = indexPayload?.index || new Map();
             const candidates = terms.length && indexPayload ? collectCandidateDocIds(terms, indexMap) : null;
             const queryVector = terms.length && indexPayload ? buildQueryVector(terms, indexMap) : null;
             const filtered = dataset.filter(record => {
-                if (!matchesFilters(record)) return false;
+                if (!matchesFilters(record, filterOptions)) return false;
                 if (!terms.length) return true;
                 if (indexPayload && candidates) {
                     const docId = getRecordSearchId(record);
@@ -1881,8 +1986,50 @@
                     .sort((a, b) => b.score - a.score)
                     .map(entry => entry.record)
                 : filtered;
-            renderTable(ranked);
-            updateEngineMetrics(ranked.length, dataset, queryContext);
+            return { queryContext, ranked, dataset };
+        };
+
+        const findBestFundingMatch = (need, fundingCandidates, fundingIndexPayload) => {
+            if (!fundingCandidates.length) {
+                return null;
+            }
+            const matchContext = buildMatchContextFromRecord(need, FUNDING_MODE);
+            const { terms } = matchContext;
+            const indexMap = fundingIndexPayload?.index || new Map();
+            const candidates = terms.length && fundingIndexPayload ? collectCandidateDocIds(terms, indexMap) : null;
+            const queryVector = terms.length && fundingIndexPayload ? buildQueryVector(terms, indexMap) : null;
+            let bestMatch = null;
+            fundingCandidates.forEach(record => {
+                if (terms.length && fundingIndexPayload && candidates) {
+                    const docId = getRecordSearchId(record);
+                    if (!candidates.has(docId)) {
+                        return;
+                    }
+                }
+                const baseScore = terms.length && fundingIndexPayload
+                    ? scoreRecord(record, matchContext, fundingIndexPayload, queryVector)
+                    : 1;
+                const boostedScore = baseScore + computeNeedMatchBoost(need, record);
+                if (!bestMatch || boostedScore > bestMatch.score) {
+                    bestMatch = { record, score: boostedScore };
+                }
+            });
+            return bestMatch;
+        };
+
+        const applySearch = (query) => {
+            const needsSearch = executeSearch(query, NEEDS_MODE, { applyCategory: true, applyType: false });
+            const fundingCandidates = getFundingDataset().filter(record => (
+                matchesFilters(record, { applyCategory: false, applyType: true })
+            ));
+            const fundingIndexPayload = searchIndexCache[FUNDING_MODE];
+            const matches = needsSearch.ranked.map(need => ({
+                need,
+                match: findBestFundingMatch(need, fundingCandidates, fundingIndexPayload)
+            }));
+            renderMatchTable(matches);
+            const matchCount = matches.filter(entry => entry.match).length;
+            updateEngineMetrics(needsSearch.ranked.length, needsSearch.dataset, matchCount, needsSearch.queryContext);
             scheduleSearchStateSave();
         };
 
@@ -1918,10 +2065,10 @@
             clearInputs();
         };
 
-        const editRecord = async (index) => {
-            const dataset = getActiveDataset();
+        const editRecord = async (index, mode = activeMode) => {
+            const dataset = getDatasetForMode(mode);
             const record = dataset[index];
-            const config = getModeConfig(activeMode);
+            const config = getModeConfig(mode);
             const newName = prompt('Edit Name:', record.name);
             const newCountry = prompt('Edit Country:', record.country);
             const newCategory = prompt('Edit Category:', record.category);
@@ -1936,16 +2083,16 @@
             if (newTarget !== null) record.target = newTarget.trim();
             if (newWebsite !== null) record.website = newWebsite.trim();
             if (newContacts !== null) record.contacts = newContacts.trim();
-            dataset[index] = prepareRecord(record, activeMode);
+            dataset[index] = prepareRecord(record, mode);
             await persistRecord(dataset[index]);
             applySearch(searchInput.value);
         };
 
-        const deleteRecord = async (index) => {
+        const deleteRecord = async (index, mode = activeMode) => {
             if (!confirm('Delete this record?')) {
                 return;
             }
-            const dataset = getActiveDataset();
+            const dataset = getDatasetForMode(mode);
             const [removed] = dataset.splice(index, 1);
             await removeRecord(removed);
             applySearch(searchInput.value);
