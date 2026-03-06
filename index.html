@@ -45,7 +45,7 @@
 </head>
 <body>
     <h1>Funding Management System (Multi-Country Intelligence Search)</h1>
-    <p>Run deep scans for funders, foundations, corporates, and contract opportunities across South Africa, Russia, China, Brazil, and India. Use the advanced search console to target sectors, services, and keywords. Data syncs to Firebase when configured.</p>
+    <p id="engineIntro">Run deep scans for funders, foundations, corporates, and contract opportunities across South Africa, Russia, China, Brazil, and India. Use the advanced search console to target sectors, services, and keywords. Data syncs to Firebase when configured.</p>
     <div id="status" class="status-warning">Firebase status: Not connected yet.</div>
 
     <section class="engine-panel">
@@ -57,8 +57,8 @@
             <div class="control-group">
                 <label for="searchMode">Search Engine Mode</label>
                 <select id="searchMode">
-                    <option value="funders">Funding Intelligence (200 funders)</option>
-                    <option value="contracts">Contract & Service Leads (100 opportunities)</option>
+                    <option value="funders">Funding Intelligence</option>
+                    <option value="contracts">Contract & Service Leads</option>
                 </select>
             </div>
             <div class="control-group">
@@ -79,6 +79,73 @@
             </div>
         </div>
         <div id="engineMetrics" class="engine-metrics"></div>
+    </section>
+
+    <section class="engine-panel">
+        <div class="engine-header">
+            <h2>Search Engine Options (2026)</h2>
+            <p>Compare search stack deployments to power the funding intelligence engine.</p>
+        </div>
+        <table>
+            <thead>
+                <tr>
+                    <th>Option</th>
+                    <th>Type</th>
+                    <th>Best For</th>
+                    <th>Setup Difficulty</th>
+                    <th>Cost (2026)</th>
+                    <th>Vector / AI Search?</th>
+                    <th>Example Use Case (your context)</th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td>Meilisearch</td>
+                    <td>Open-source</td>
+                    <td>Fast typo-tolerant search</td>
+                    <td>Very easy</td>
+                    <td>Free self-host / cheap cloud</td>
+                    <td>Yes (hybrid)</td>
+                    <td>Search your list of funders by name/target/keywords</td>
+                </tr>
+                <tr>
+                    <td>Typesense</td>
+                    <td>Open-source</td>
+                    <td>Algolia-like speed &amp; simplicity</td>
+                    <td>Easy</td>
+                    <td>Free self-host / affordable cloud</td>
+                    <td>Yes</td>
+                    <td>Instant search in funding database</td>
+                </tr>
+                <tr>
+                    <td>OpenSearch</td>
+                    <td>Open-source</td>
+                    <td>Elasticsearch fork (very powerful)</td>
+                    <td>Medium</td>
+                    <td>Free (self-host) or AWS managed</td>
+                    <td>Yes (plugins)</td>
+                    <td>Larger document collection</td>
+                </tr>
+                <tr>
+                    <td>ZincSearch / Quickwit</td>
+                    <td>Open-source</td>
+                    <td>Lightweight alternatives</td>
+                    <td>Easy–medium</td>
+                    <td>Free</td>
+                    <td>Some</td>
+                    <td>Logs or small–medium docs</td>
+                </tr>
+                <tr>
+                    <td>SQLite + FTS5</td>
+                    <td>Built-in DB</td>
+                    <td>Tiny / embedded search</td>
+                    <td>Very easy</td>
+                    <td>Free</td>
+                    <td>No (but fast)</td>
+                    <td>Offline search in your HTML app</td>
+                </tr>
+            </tbody>
+        </table>
     </section>
 
     <div class="search-row">
@@ -192,19 +259,22 @@
             'Consulting & Advisory': ['consulting', 'advisory', 'strategy', 'operations']
         };
         const FUNDING_COUNTRY_TARGETS = {
-            'South Africa': 40,
+            'South Africa': 240,
             'Brazil': 40,
             'India': 40,
             'China': 40,
             'Russia': 40
         };
         const CONTRACT_COUNTRY_TARGETS = {
-            'South Africa': 20,
+            'South Africa': 120,
             'Brazil': 20,
             'India': 20,
             'China': 20,
             'Russia': 20
         };
+        const sumCountryTargets = (targets) => Object.values(targets).reduce((total, value) => total + value, 0);
+        const FUNDING_TOTAL_TARGET = sumCountryTargets(FUNDING_COUNTRY_TARGETS);
+        const CONTRACT_TOTAL_TARGET = sumCountryTargets(CONTRACT_COUNTRY_TARGETS);
         const FUNDING_INTENT_TERMS = ['funding', 'grant', 'csr', 'foundation', 'donation', 'philanthropy', 'impact'];
         const CONTRACT_INTENT_TERMS = ['contract', 'tender', 'rfp', 'service', 'logistics', 'supplier', 'client'];
         const MS_PER_SECOND = 1000;
@@ -243,6 +313,13 @@
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '-')
             .replace(/(^-|-$)/g, '');
+
+        const formatCountryList = (countries) => {
+            if (!countries.length) return '';
+            if (countries.length === 1) return countries[0];
+            if (countries.length === 2) return `${countries[0]} and ${countries[1]}`;
+            return `${countries.slice(0, -1).join(', ')}, and ${countries[countries.length - 1]}`;
+        };
 
         const CONTRACT_CLIENT_TYPES = [
             'Retail Group',
@@ -357,6 +434,7 @@
         const initialContractData = buildContractDataset();
 
         const statusEl = document.getElementById('status');
+        const engineIntroEl = document.getElementById('engineIntro');
         const searchInput = document.getElementById('search');
         const searchModeSelect = document.getElementById('searchMode');
         const countryFiltersEl = document.getElementById('countryFilters');
@@ -643,6 +721,24 @@
         };
 
         const getModeConfig = (mode) => MODE_CONFIG[mode] || MODE_CONFIG.funders;
+
+        const updateEngineCopy = () => {
+            const countryList = formatCountryList(COUNTRY_OPTIONS);
+            if (engineIntroEl) {
+                engineIntroEl.textContent =
+                    `Run deep scans for ${FUNDING_TOTAL_TARGET} funders (including ${FUNDING_COUNTRY_TARGETS[DEFAULT_COUNTRY]} in ${DEFAULT_COUNTRY}) ` +
+                    `and ${CONTRACT_TOTAL_TARGET} contract opportunities (including ${CONTRACT_COUNTRY_TARGETS[DEFAULT_COUNTRY]} in ${DEFAULT_COUNTRY}) ` +
+                    `across ${countryList}. Use the advanced search console to target sectors, services, and keywords. Data syncs to Firebase when configured.`;
+            }
+            const funderOption = searchModeSelect.querySelector('option[value="funders"]');
+            if (funderOption) {
+                funderOption.textContent = `${MODE_CONFIG.funders.label} (${FUNDING_TOTAL_TARGET} funders)`;
+            }
+            const contractOption = searchModeSelect.querySelector('option[value="contracts"]');
+            if (contractOption) {
+                contractOption.textContent = `${MODE_CONFIG.contracts.label} (${CONTRACT_TOTAL_TARGET} opportunities)`;
+            }
+        };
 
         const escapeHtml = (value) => (value || '')
             .toString()
@@ -1964,6 +2060,7 @@
         };
 
         const init = async () => {
+            updateEngineCopy();
             populateSelect('newCountry', COUNTRY_OPTIONS, DEFAULT_COUNTRY);
             renderCountryFilters();
             await initFirebaseSdk();
