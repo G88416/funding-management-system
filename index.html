@@ -169,7 +169,7 @@
             'navboost',
             'glue',
             'twiddlers',
-            'gemini',
+            'Gemini',
             'multimodal',
             'semantic',
             'signals'
@@ -227,7 +227,7 @@
                 country: 'User History',
                 category: 'Query Understanding',
                 type: 'Intent Understanding',
-                target: 'Gemini-powered models parse natural language, intent, context, synonyms, and follow-ups, handle multimodal queries, and factor in location signals, device, and history.',
+                target: 'Gemini-powered models parse natural language, intent, context, synonyms, and follow-ups. They handle multimodal queries and factor in location signals, device, and history.',
                 website: '',
                 contacts: ''
             },
@@ -254,7 +254,7 @@
                 country: 'Multimodal Signals',
                 category: 'Re-ranking & Refinement',
                 type: 'Re-ranking Systems',
-                target: 'Navboost boosts results using 13 months of anonymized clicks and dwell time, Glue tunes SERP features, and Twiddlers apply rules for freshness and spam demotion.',
+                target: 'Navboost boosts results using 13 months of anonymized clicks and dwell time. Glue tunes SERP features, and Twiddlers apply rules for freshness and spam demotion.',
                 website: '',
                 contacts: ''
             }
@@ -303,6 +303,7 @@
         let navboostPending = null;
         let navboostSaveTimer = null;
         let searchStateSaveTimer = null;
+        let cardClickBound = false;
 
         const STOP_WORDS = new Set([
             'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'as', 'at',
@@ -1111,7 +1112,10 @@
             syncCountryFilterUI();
             updateModeUI();
             applySearch(searchInput.value);
-            tableBody.addEventListener('click', handleCardClick);
+            if (!cardClickBound) {
+                tableBody.addEventListener('click', handleCardClick);
+                cardClickBound = true;
+            }
         };
 
         const initFirebaseSdk = async () => {
