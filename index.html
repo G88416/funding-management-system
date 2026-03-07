@@ -1414,6 +1414,7 @@
             searchInput.value = savedState.query || '';
             setDataset(buildSearchPipelineDataset().map(entry => prepareRecord(entry, activeMode)));
             applySearch(searchInput.value);
+            tableBody.addEventListener('click', handleCardClick);
             searchInput.addEventListener('input', (e) => {
                 applySearch(e.target.value);
             });
