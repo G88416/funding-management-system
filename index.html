@@ -3,7 +3,7 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Finance & Opportunity Search Engine (Updated 2026)</title>
+    <title>Search Results Intelligence Engine (Updated 2026)</title>
     <style>
         body { font-family: Arial, sans-serif; margin: 20px; background: #f9f9f9; }
         h1 { color: #2c3e50; }
@@ -42,7 +42,7 @@
         .search-row { margin-bottom: 12px; }
         .form-help { margin-top: -6px; margin-bottom: 10px; color: #4b5563; font-size: 14px; }
         .match-table th { text-transform: uppercase; letter-spacing: 0.03em; }
-        .match-cell { vertical-align: top; width: 50%; }
+        .match-cell { vertical-align: top; width: 100%; }
         .match-card { background: #ffffff; border: 1px solid #e5e7eb; border-radius: 10px; padding: 12px; display: flex; flex-direction: column; gap: 6px; box-shadow: 0 1px 4px rgba(15, 23, 42, 0.08); }
         .match-card-header { display: flex; justify-content: space-between; gap: 8px; align-items: baseline; }
         .match-card-title { font-weight: 700; color: #1f2937; }
@@ -54,37 +54,36 @@
     </style>
 </head>
 <body>
-    <h1>Finance & Opportunity Search Engine</h1>
-    <p id="engineIntro">Search for companies and projects that need financing while the engine surfaces matching investors and grants in parallel.</p>
+    <h1>Search Results Intelligence Engine</h1>
+    <p id="engineIntro">Explore how the search pipeline refreshes every query to surface more relevant, intent-aware results.</p>
     <div id="status" class="status-warning">Firebase status: Not connected yet.</div>
 
     <section class="engine-panel">
         <div class="engine-header">
-            <h2>Finance Match Intelligence Engine</h2>
-            <p>Blend curated intelligence, deep-scan generated opportunities, and Navboost-style satisfaction signals to match financing needs with funding sources.</p>
+            <h2>Search Result Intelligence Engine</h2>
+            <p>Refresh the index on every query and learn how crawling, understanding, retrieval, scoring, and re-ranking combine to improve results.</p>
         </div>
         <div class="engine-controls">
             <div class="control-group">
-                <label for="searchMode">Record Management Focus</label>
+                <label for="searchMode">Search Blueprint Focus</label>
                 <select id="searchMode">
-                    <option value="funders">Funding Sources</option>
-                    <option value="contracts">Financing Needs</option>
+                    <option value="search">Search Pipeline</option>
                 </select>
             </div>
             <div class="control-group">
-                <label>Country Focus</label>
+                <label>Context Focus</label>
                 <div id="countryFilters" class="pill-group"></div>
             </div>
             <div class="control-group">
-                <label for="categoryFilter">Need Sector (filters needs)</label>
+                <label for="categoryFilter">Pipeline Stage</label>
                 <select id="categoryFilter"></select>
             </div>
             <div class="control-group">
-                <label for="typeFilter">Funding Source Type (filters matches)</label>
+                <label for="typeFilter">Signal System</label>
                 <select id="typeFilter"></select>
             </div>
             <div class="engine-actions">
-                <button id="runDeepScan" class="primary-btn">Run Deep Scan</button>
+                <button id="runDeepScan" class="primary-btn">Refresh Pipeline</button>
                 <button id="clearFilters" class="ghost-btn">Reset Filters</button>
             </div>
         </div>
@@ -92,33 +91,19 @@
     </section>
 
     <div class="search-row">
-        <input type="text" id="search" placeholder="Describe financing needs or target investment focus...">
+        <input type="text" id="search" placeholder="Describe the search intent, ranking goal, or relevance challenge...">
     </div>
 
-    <h2 id="resultsTitle">Financing Need Matches</h2>
+    <h2 id="resultsTitle">Search Pipeline Results</h2>
 
     <table id="matchTable" class="match-table">
         <thead>
             <tr>
-                <th>Financing Needs (Companies & Projects)</th>
-                <th>Matching Funding Sources (Investors & Grants)</th>
+                <th>Search Result Blueprint</th>
             </tr>
         </thead>
         <tbody></tbody>
     </table>
-
-    <h2 id="formTitle">Add / Manage Records</h2>
-    <p id="formHelp" class="form-help">Add financing needs or funding sources to the selected stream.</p>
-    <div id="addForm">
-        <input type="text" id="newName" placeholder="Name (required)">
-        <select id="newCountry"></select>
-        <select id="newCategory"></select>
-        <select id="newType"></select>
-        <input type="text" id="newTarget" placeholder="Need or funding focus (e.g., capital required, grant priorities)">
-        <input type="text" id="newWebsite" placeholder="Website (https://...)">
-        <input type="text" id="newContacts" placeholder="Contacts (email/phone)">
-        <button id="addFunderButton">Add Record to Selected Stream</button>
-    </div>
 
     <script>
         const firebaseConfig = {
@@ -132,95 +117,63 @@
         };
 
         const FIREBASE_COLLECTIONS = {
-            funders: 'funders',
-            contracts: 'contractLeads',
             navboost: 'navboostSignals',
-            scanMeta: 'scanMeta',
-            searchState: 'searchState',
-            searchIndex: 'searchIndexes'
+            searchState: 'searchState'
         };
-        const SEARCH_INDEX_VERSION = 1;
-        const NEEDS_MODE = 'contracts';
-        const FUNDING_MODE = 'funders';
-        const DEFAULT_COUNTRY = 'South Africa';
-        const COUNTRY_OPTIONS = ['South Africa', 'Russia', 'China', 'Brazil', 'India'];
+        const SEARCH_MODE = 'search';
+        const DEFAULT_COUNTRY = 'Global';
+        const COUNTRY_OPTIONS = [
+            'Global',
+            'Local Context',
+            'Device Context',
+            'User History',
+            'Multimodal Signals'
+        ];
         const CATEGORY_OPTIONS = [
-            'Education (Schools)',
-            'Orphanage & Child Welfare',
-            'Hospice & Palliative Care',
-            'Elderly Care',
-            'Disability Support',
-            'Community Health',
-            'Food Security',
-            'Youth Development'
+            'Crawling & Indexing',
+            'Query Understanding',
+            'Candidate Retrieval',
+            'Initial Scoring & Relevance',
+            'Re-ranking & Refinement'
         ];
-        const CONTRACT_CATEGORY_OPTIONS = [
-            'Logistics & Transport',
-            'Warehousing & Fulfillment',
-            'Fleet Management',
-            'Cold Chain Services',
-            'Freight Forwarding',
-            'Last-Mile Delivery',
-            'Procurement & Sourcing',
-            'IT & Digital Services',
-            'Facilities & Security',
-            'Consulting & Advisory'
+        const TYPE_OPTIONS = [
+            'Discovery Signals',
+            'Intent Understanding',
+            'Retrieval Systems',
+            'Relevance Scoring',
+            'Re-ranking Systems'
         ];
-        const TYPE_OPTIONS = ['Foundation', 'Corporate', 'Listed Company', 'Government/Agency'];
-        const CONTRACT_TYPE_OPTIONS = ['Request for Proposal', 'Supplier Search', 'Framework Agreement', 'Tender Notice', 'Service Contract'];
-        const FIRESTORE_BATCH_SIZE = 500;
         const BM25_CONFIG = {
             k1: 1.5,
             b: 0.75,
             phraseBoost: 1.8,
             vectorBoost: 0.35
         };
-        const NEED_MATCH_COUNTRY_WEIGHT = 2.5;
-        const NEED_MATCH_CATEGORY_WEIGHT = 2;
-        const TOKEN_OVERLAP_WEIGHT = 0.6;
-        const MAX_TOKEN_OVERLAP_SCORE = 3;
         const PERSISTENCE_SAVE_DELAY_MS = 800;
-        const FUNDING_CATEGORY_SYNONYM_SEED = {
-            'Education (Schools)': ['school', 'schooling', 'education', 'learners', 'teachers', 'scholarship'],
-            'Orphanage & Child Welfare': ['orphan', 'orphans', 'children home', 'childcare', 'child welfare'],
-            'Hospice & Palliative Care': ['hospice', 'palliative', 'terminal care', 'end of life'],
-            'Elderly Care': ['elderly', 'seniors', 'old age', 'aged care'],
-            'Disability Support': ['disabled', 'disability', 'special needs', 'intellectual disability'],
-            'Community Health': ['health', 'clinic', 'medical', 'public health'],
-            'Food Security': ['nutrition', 'hunger', 'food relief', 'food parcels'],
-            'Youth Development': ['youth', 'skills', 'employment', 'training']
+        const SEARCH_STAGE_SYNONYM_SEED = {
+            'Crawling & Indexing': ['crawl', 'crawler', 'googlebot', 'sitemap', 'index', 'discovery'],
+            'Query Understanding': ['intent', 'context', 'synonym', 'gemini', 'language model', 'multimodal'],
+            'Candidate Retrieval': ['inverted index', 'dense vector', 'embedding', 'semantic retrieval', 'candidate'],
+            'Initial Scoring & Relevance': ['rankbrain', 'deeprank', 'relevance', 'freshness', 'e-e-a-t', 'entities'],
+            'Re-ranking & Refinement': ['navboost', 'glue', 'twiddlers', 're-rank', 'diversity', 'spam demotion']
         };
-        const CONTRACT_CATEGORY_SYNONYM_SEED = {
-            'Logistics & Transport': ['logistics', 'transport', 'haulage', 'trucking', 'road freight'],
-            'Warehousing & Fulfillment': ['warehouse', 'fulfillment', 'storage', 'inventory'],
-            'Fleet Management': ['fleet', 'vehicle', 'maintenance', 'telematics'],
-            'Cold Chain Services': ['cold chain', 'refrigerated', 'temperature controlled'],
-            'Freight Forwarding': ['freight forwarding', 'customs', 'import', 'export'],
-            'Last-Mile Delivery': ['last mile', 'delivery', 'courier', 'distribution'],
-            'Procurement & Sourcing': ['procurement', 'sourcing', 'supply', 'vendor'],
-            'IT & Digital Services': ['it services', 'software', 'digital', 'automation'],
-            'Facilities & Security': ['facilities', 'security', 'guarding', 'compliance'],
-            'Consulting & Advisory': ['consulting', 'advisory', 'strategy', 'operations']
-        };
-        const FUNDERS_TARGETS_BY_COUNTRY = {
-            'South Africa': 240,
-            'Brazil': 40,
-            'India': 40,
-            'China': 40,
-            'Russia': 40
-        };
-        const OPPORTUNITY_TARGETS_BY_COUNTRY = {
-            'South Africa': 120,
-            'Brazil': 20,
-            'India': 20,
-            'China': 20,
-            'Russia': 20
-        };
-        const sumCountryTargets = (targets) => Object.values(targets).reduce((total, value) => total + value, 0);
-        const FUNDERS_TARGET_TOTAL = sumCountryTargets(FUNDERS_TARGETS_BY_COUNTRY);
-        const OPPORTUNITY_TARGET_TOTAL = sumCountryTargets(OPPORTUNITY_TARGETS_BY_COUNTRY);
-        const FUNDING_INTENT_TERMS = ['funding', 'grant', 'csr', 'foundation', 'donation', 'philanthropy', 'impact'];
-        const CONTRACT_INTENT_TERMS = ['contract', 'tender', 'rfp', 'service', 'logistics', 'supplier', 'client'];
+        const SEARCH_INTENT_TERMS = [
+            'search',
+            'query',
+            'ranking',
+            'index',
+            'crawl',
+            'relevance',
+            'intent',
+            'freshness',
+            'navboost',
+            'glue',
+            'twiddlers',
+            'gemini',
+            'multimodal',
+            'semantic',
+            'signals'
+        ];
         const MS_PER_SECOND = 1000;
         const MS_PER_MINUTE = 60 * MS_PER_SECOND;
         const MS_PER_HOUR = 60 * MS_PER_MINUTE;
@@ -247,12 +200,6 @@
             cluster: 'cluster'
         };
 
-        const normalizeCategoryLabel = (category) => category
-            .replace(/\s*\(.*?\)\s*/g, '')
-            .replace(/\s*&\s*/g, ' and ')
-            .replace(/\s+/g, ' ')
-            .trim();
-
         const slugifySeed = (value) => value
             .toLowerCase()
             .replace(/[^a-z0-9]+/g, '-')
@@ -265,117 +212,61 @@
             return `${countries.slice(0, -1).join(', ')}, and ${countries[countries.length - 1]}`;
         };
 
-        const CONTRACT_CLIENT_TYPES = [
-            'Retail Group',
-            'Manufacturing Hub',
-            'Healthcare Network',
-            'Agribusiness Cooperative',
-            'Mining Operator',
-            'E-commerce Marketplace',
-            'Public Agency',
-            'Energy Utility'
+        const SEARCH_PIPELINE_SEED = [
+            {
+                name: 'Crawling & Indexing',
+                country: 'Global',
+                category: 'Crawling & Indexing',
+                type: 'Discovery Signals',
+                target: 'Googlebot continuously discovers pages via links, sitemaps, and other signals before storing them in the massive index.',
+                website: '',
+                contacts: ''
+            },
+            {
+                name: 'Query Understanding',
+                country: 'User History',
+                category: 'Query Understanding',
+                type: 'Intent Understanding',
+                target: 'Gemini-powered language models (advanced LLMs) parse natural language, intent, context, synonyms, and follow-ups. They handle multimodal queries and factor in location signals, device, and history.',
+                website: '',
+                contacts: ''
+            },
+            {
+                name: 'Candidate Retrieval',
+                country: 'Global',
+                category: 'Candidate Retrieval',
+                type: 'Retrieval Systems',
+                target: 'Thousands of candidates surface via keyword inverted indexes plus dense vector/semantic retrieval for concept matching.',
+                website: '',
+                contacts: ''
+            },
+            {
+                name: 'Initial Scoring & Relevance',
+                country: 'Local Context',
+                category: 'Initial Scoring & Relevance',
+                type: 'Relevance Scoring',
+                target: 'Base ML scorers weigh content match, topical depth, entities, freshness, and E-E-A-T signals.',
+                website: '',
+                contacts: ''
+            },
+            {
+                name: 'Re-ranking & Refinement',
+                country: 'Multimodal Signals',
+                category: 'Re-ranking & Refinement',
+                type: 'Re-ranking Systems',
+                target: 'Navboost boosts results using 13 months of anonymized clicks and dwell time. Glue (SERP orchestration) tunes feature layouts, and Twiddlers (late-stage rules) apply freshness and spam demotion.',
+                website: '',
+                contacts: ''
+            }
         ];
-        const CONTRACT_NEEDS = [
-            'distribution network expansion',
-            'fleet optimization program',
-            'regional warehouse launch',
-            'cross-border trade lane setup',
-            'last-mile delivery acceleration',
-            'cold-chain compliance upgrade',
-            'supplier consolidation strategy',
-            'operations resilience plan'
-        ];
-        const CONTRACT_SIGNAL_TAGS = [
-            'urgent logistics partner search',
-            'multi-year framework request',
-            'high-priority service tender',
-            'strategic supplier onboarding',
-            'client acquisition drive'
-        ];
 
-        const seedFunders = [
-            { name: "Kagiso Trust", country: "South Africa", category: "Education (Schools)", type: "Foundation", target: "Education (schools), early childhood, socio-economic development, vulnerable communities including orphans and disabled", website: "https://kagiso.co.za/", contacts: "info@kagiso.co.za" },
-            { name: "Trevor Noah Foundation", country: "South Africa", category: "Education (Schools)", type: "Foundation", target: "Youth education, digital literacy, disadvantaged schools, vulnerable children", website: "https://trevornoahfoundation.org/", contacts: "info@trevornoahfoundation.org" },
-            { name: "Spur Foundation (Spur Corporation - JSE listed)", country: "South Africa", category: "Orphanage & Child Welfare", type: "Listed Company", target: "Vulnerable families, nutrition for children, early childhood education, orphan support via NGOs", website: "https://www.spurfoundation.co.za/", contacts: "spurfoundation@spur.co.za" },
-            { name: "JSE CSI", country: "South Africa", category: "Community Health", type: "Listed Company", target: "Health, education (schools via Adopt-a-School), social development, vulnerable groups including elderly/disabled", website: "https://group.jse.co.za/", contacts: "ir@jse.co.za; +27 11 520 7000" },
-            { name: "Shoprite Holdings (JSE listed)", country: "South Africa", category: "Food Security", type: "Listed Company", target: "Food security, hunger relief, youth employment, education, support for orphans/elderly via #ActForChange", website: "https://www.shopriteholdings.co.za/", contacts: "Via website contact form" },
-            { name: "Nazareth Care Africa / Nazareth House South Africa", country: "South Africa", category: "Hospice & Palliative Care", type: "Foundation", target: "Indigent elderly (old age homes), orphaned children, hospice care including children and terminally ill", website: "https://nazarethcare.co.za/", contacts: "rosie.whittaker@nazarethcare.co.za; +27 79 114 6601" },
-            { name: "Little Eden Society", country: "South Africa", category: "Disability Support", type: "Foundation", target: "Children and adults with profound intellectual disabilities (homes for disabled)", website: "https://littleeden.org.za/", contacts: "info@littleeden.org.za; +27 11 609 7246" },
-            { name: "Hollywood Foundation", country: "South Africa", category: "Elderly Care", type: "Corporate", target: "Elderly citizens, vulnerable members, non-profits supporting old age homes, disabled, education, community care", website: "https://hollywoodfoundation.co.za/", contacts: "Via website inquiry form" },
-            { name: "MaAfrika Tikkun", country: "South Africa", category: "Youth Development", type: "Foundation", target: "Vulnerable children, orphans, education, community development, health for disadvantaged", website: "https://www.tikkun.org.za/", contacts: "info@tikkun.org.za" },
-            { name: "Sberbank Charitable Foundation 'Contribution to the Future'", country: "Russia", category: "Education (Schools)", type: "Corporate", target: "Education programs, digital skills, youth development, inclusive learning", website: "https://vbudushee.ru/", contacts: "Via website contact form" },
-            { name: "RUSAL Social Programs", country: "Russia", category: "Community Health", type: "Listed Company", target: "Regional community health, education, sports, and social infrastructure support", website: "https://rusal.ru/en/responsibility/", contacts: "Via website contact form" },
-            { name: "Tencent Charity Foundation", country: "China", category: "Community Health", type: "Corporate", target: "Public welfare, disaster relief, community health and education programs", website: "https://gongyi.qq.com/", contacts: "Via website contact form" },
-            { name: "Alibaba Foundation", country: "China", category: "Education (Schools)", type: "Corporate", target: "Education, rural development, digital inclusion, youth innovation", website: "https://www.alibabagroup.com/en/ir/esg", contacts: "Via website contact form" },
-            { name: "Fundação Bradesco", country: "Brazil", category: "Education (Schools)", type: "Foundation", target: "Education, digital skills, inclusive schooling, community development", website: "https://fundacao.bradesco/", contacts: "Via website contact form" },
-            { name: "Fundação Itaú Social", country: "Brazil", category: "Education (Schools)", type: "Corporate", target: "Education policy, school support, youth development, community partnerships", website: "https://www.itausocial.org.br/", contacts: "Via website contact form" },
-            { name: "Tata Trusts", country: "India", category: "Community Health", type: "Foundation", target: "Healthcare access, education, rural livelihoods, nutrition, water and sanitation", website: "https://www.tatatrusts.org/", contacts: "Via website contact form" },
-            { name: "Reliance Foundation", country: "India", category: "Youth Development", type: "Corporate", target: "Education, sports, rural transformation, health initiatives, women empowerment", website: "https://www.reliancefoundation.org/", contacts: "Via website contact form" }
-        ];
+        const buildSearchPipelineDataset = () => SEARCH_PIPELINE_SEED.map(entry => ({
+            ...entry,
+            recordType: SEARCH_MODE,
+            discovery: 'Pipeline'
+        }));
 
-        const PLACEHOLDER_DOMAIN = 'placeholder-funders.example.com';
-
-        const buildFundingDataset = () => {
-            const generated = [];
-            COUNTRY_OPTIONS.forEach((country, countryIndex) => {
-                const target = FUNDERS_TARGETS_BY_COUNTRY[country] || 0;
-                const curated = seedFunders.filter(entry => entry.country === country).slice(0, target);
-                curated.forEach(entry => generated.push({ ...entry, recordType: 'funders', discovery: 'Curated' }));
-                const needed = Math.max(target - curated.length, 0);
-                const code = country.slice(0, 2).toLowerCase();
-                for (let i = 1; i <= needed; i += 1) {
-                    const category = CATEGORY_OPTIONS[(i - 1) % CATEGORY_OPTIONS.length];
-                    const type = TYPE_OPTIONS[(i - 1 + countryIndex) % TYPE_OPTIONS.length];
-                    const label = String(i).padStart(2, '0');
-                    const categoryLabel = normalizeCategoryLabel(category);
-                    const urlSlug = `${slugifySeed(country)}-${slugifySeed(categoryLabel)}-${label}`;
-                    generated.push({
-                        name: `${country} ${categoryLabel} Fund ${label}`,
-                        country,
-                        category,
-                        type,
-                        target: `${categoryLabel} initiatives and community partnerships in ${country}.`,
-                        website: `https://${PLACEHOLDER_DOMAIN}/${urlSlug}`,
-                        contacts: `info.${code}${label}@${PLACEHOLDER_DOMAIN}`,
-                        recordType: 'funders',
-                        discovery: 'Deep Scan'
-                    });
-                }
-            });
-            return generated;
-        };
-
-        const buildContractDataset = () => {
-            const generated = [];
-            COUNTRY_OPTIONS.forEach((country, countryIndex) => {
-                const target = OPPORTUNITY_TARGETS_BY_COUNTRY[country] || 0;
-                const code = country.slice(0, 2).toLowerCase();
-                for (let i = 1; i <= target; i += 1) {
-                    const category = CONTRACT_CATEGORY_OPTIONS[(i - 1) % CONTRACT_CATEGORY_OPTIONS.length];
-                    const type = CONTRACT_TYPE_OPTIONS[(i - 1 + countryIndex) % CONTRACT_TYPE_OPTIONS.length];
-                    const client = CONTRACT_CLIENT_TYPES[(i - 1 + countryIndex) % CONTRACT_CLIENT_TYPES.length];
-                    const need = CONTRACT_NEEDS[(i - 1) % CONTRACT_NEEDS.length];
-                    const signal = CONTRACT_SIGNAL_TAGS[(i - 1 + countryIndex) % CONTRACT_SIGNAL_TAGS.length];
-                    const label = String(i).padStart(2, '0');
-                    const urlSlug = `${slugifySeed(country)}-${slugifySeed(category)}-${label}`;
-                    generated.push({
-                        name: `${country} ${client} ${category} Lead ${label}`,
-                        country,
-                        category,
-                        type,
-                        target: `${client} seeks ${category.toLowerCase()} partner for ${need}. Priority: ${signal}.`,
-                        website: `https://${PLACEHOLDER_DOMAIN}/${urlSlug}`,
-                        contacts: `contracts.${code}${label}@${PLACEHOLDER_DOMAIN}`,
-                        recordType: 'contracts',
-                        discovery: 'Deep Scan'
-                    });
-                }
-            });
-            return generated;
-        };
-
-        const initialData = buildFundingDataset();
-        const initialContractData = buildContractDataset();
+        const initialData = buildSearchPipelineDataset();
 
         const statusEl = document.getElementById('status');
         const engineIntroEl = document.getElementById('engineIntro');
@@ -387,22 +278,17 @@
         const runDeepScanButton = document.getElementById('runDeepScan');
         const clearFiltersButton = document.getElementById('clearFilters');
         const engineMetricsEl = document.getElementById('engineMetrics');
-        const formTitleEl = document.getElementById('formTitle');
-        const formHelpEl = document.getElementById('formHelp');
         const resultsTitleEl = document.getElementById('resultsTitle');
-        const targetInputEl = document.getElementById('newTarget');
         const tableBody = document.querySelector('#matchTable tbody');
-        const addRecordButton = document.getElementById('addFunderButton');
-        let funders = [];
-        let financingNeeds = [];
-        let activeMode = NEEDS_MODE;
+        let searchRecords = [];
+        let activeMode = SEARCH_MODE;
         let db = null;
         let firebaseReady = false;
         let firebaseSdk = null;
         let firestoreSdk = null;
         let analyticsSdk = null;
         let analytics = null;
-        let scanMeta = {};
+        let lastSearchAt = null;
         const filterState = {
             countries: new Set(COUNTRY_OPTIONS),
             category: 'all',
@@ -416,12 +302,7 @@
         let navboostQueryIndex = new Map();
         let navboostPending = null;
         let navboostSaveTimer = null;
-        let scanMetaSaveTimer = null;
         let searchStateSaveTimer = null;
-        const searchIndexCache = {
-            funders: null,
-            contracts: null
-        };
 
         const STOP_WORDS = new Set([
             'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'as', 'at',
@@ -624,54 +505,31 @@
             };
         };
 
-        const CATEGORY_SYNONYMS_BY_MODE = {
-            funders: Object.fromEntries(
-                Object.entries(FUNDING_CATEGORY_SYNONYM_SEED).map(([key, value]) => [normalizeText(key), value])
-            ),
-            contracts: Object.fromEntries(
-                Object.entries(CONTRACT_CATEGORY_SYNONYM_SEED).map(([key, value]) => [normalizeText(key), value])
-            )
-        };
+        const CATEGORY_SYNONYMS = Object.fromEntries(
+            Object.entries(SEARCH_STAGE_SYNONYM_SEED).map(([key, value]) => [normalizeText(key), value])
+        );
 
         const UI_COPY = {
-            engineIntro: 'Search for companies and projects that need financing while the engine surfaces matching investors and grants in parallel.',
-            resultsLabel: 'Financing Need Matches',
-            formHelp: 'Add financing needs or funding sources to the selected stream.',
-            addRecordButton: 'Add Record to Selected Stream'
+            engineIntro: 'Explore how the search pipeline refreshes every query to surface more relevant, intent-aware results.',
+            resultsLabel: 'Search Pipeline Results'
         };
 
         const MODE_CONFIG = {
-            funders: {
-                label: 'Funding Sources',
+            [SEARCH_MODE]: {
+                label: 'Search Pipeline',
                 resultsLabel: UI_COPY.resultsLabel,
-                typeLabel: 'Funding Source Type',
-                targetLabel: 'Funding Focus',
-                targetPlaceholder: 'Funding focus (e.g., grant priorities, investment areas)',
-                formHelp: UI_COPY.formHelp,
+                contextLabel: 'Context',
+                categoryLabel: 'Stage',
+                typeLabel: 'Signal System',
+                targetLabel: 'Key Details',
                 categoryOptions: CATEGORY_OPTIONS,
                 typeOptions: TYPE_OPTIONS,
-                intentTerms: FUNDING_INTENT_TERMS,
-                weights: { name: 6, category: 4, country: 4, type: 3, target: 3, search: 2, intent: 3, phrase: 5 },
-                emailSubject: 'Funding Partnership',
-                emailIntro: 'I am reaching out regarding potential funding, grants, or investment support.'
-            },
-            contracts: {
-                label: 'Financing Needs',
-                resultsLabel: UI_COPY.resultsLabel,
-                typeLabel: 'Need Type',
-                targetLabel: 'Financing Need',
-                targetPlaceholder: 'Financing need (e.g., capital required, expansion goals)',
-                formHelp: UI_COPY.formHelp,
-                categoryOptions: CONTRACT_CATEGORY_OPTIONS,
-                typeOptions: CONTRACT_TYPE_OPTIONS,
-                intentTerms: CONTRACT_INTENT_TERMS,
-                weights: { name: 5, category: 5, country: 4, type: 3, target: 4, search: 2, intent: 4, phrase: 5 },
-                emailSubject: 'Financing Opportunity',
-                emailIntro: 'I am responding to this financing need and would like to align funding support.'
+                intentTerms: SEARCH_INTENT_TERMS,
+                weights: { name: 6, category: 5, country: 4, type: 4, target: 4, search: 3, intent: 4, phrase: 5 }
             }
         };
 
-        const getModeConfig = (mode) => MODE_CONFIG[mode] || MODE_CONFIG.funders;
+        const getModeConfig = (mode) => MODE_CONFIG[mode] || MODE_CONFIG[SEARCH_MODE];
 
         const escapeHtml = (value) => (value || '')
             .toString()
@@ -981,64 +839,8 @@
             };
         };
 
-        const loadScanMeta = async () => {
-            if (!firebaseReady) {
-                return {};
-            }
-            try {
-                const docRef = firestoreSdk.doc(db, FIREBASE_COLLECTIONS.scanMeta, 'meta');
-                const snapshot = await firestoreSdk.getDoc(docRef);
-                return snapshot.exists() ? snapshot.data() : {};
-            } catch (error) {
-                console.error('Scan metadata load failed', error);
-                return {};
-            }
-        };
-
-        const saveScanMeta = async () => {
-            if (!firebaseReady) {
-                return;
-            }
-            try {
-                const docRef = firestoreSdk.doc(db, FIREBASE_COLLECTIONS.scanMeta, 'meta');
-                await firestoreSdk.setDoc(docRef, scanMeta, { merge: true });
-            } catch (error) {
-                console.error('Scan metadata save failed', error);
-            }
-        };
-
-        const scheduleScanMetaSave = () => {
-            if (!firebaseReady) {
-                return;
-            }
-            if (scanMetaSaveTimer) {
-                clearTimeout(scanMetaSaveTimer);
-            }
-            scanMetaSaveTimer = setTimeout(() => {
-                saveScanMeta();
-            }, PERSISTENCE_SAVE_DELAY_MS);
-        };
-
-        const markDeepScan = (mode) => {
-            scanMeta = {
-                ...scanMeta,
-                [mode]: {
-                    lastScan: new Date().toISOString()
-                }
-            };
-            scheduleScanMetaSave();
-        };
-
-        const ensureScanMetaEntry = (mode) => {
-            if (!scanMeta?.[mode]?.lastScan) {
-                scanMeta = {
-                    ...scanMeta,
-                    [mode]: {
-                        lastScan: new Date().toISOString()
-                    }
-                };
-                scheduleScanMetaSave();
-            }
+        const markSearchRefresh = () => {
+            lastSearchAt = new Date().toISOString();
         };
 
         const loadSearchState = async () => {
@@ -1060,7 +862,6 @@
                 return;
             }
             const state = {
-                mode: activeMode,
                 query: searchInput.value.trim(),
                 filters: {
                     countries: Array.from(filterState.countries),
@@ -1088,20 +889,10 @@
             }, PERSISTENCE_SAVE_DELAY_MS);
         };
 
-        const getDatasetForMode = (mode) => (mode === FUNDING_MODE ? funders : financingNeeds);
+        const getActiveDataset = () => searchRecords;
 
-        const getActiveDataset = () => getDatasetForMode(activeMode);
-
-        const getNeedsDataset = () => financingNeeds;
-
-        const getFundingDataset = () => funders;
-
-        const setDatasetForMode = (mode, data) => {
-            if (mode === FUNDING_MODE) {
-                funders = data;
-            } else {
-                financingNeeds = data;
-            }
+        const setDataset = (data) => {
+            searchRecords = data;
         };
 
         const updateStatus = (message, type = 'warning') => {
@@ -1115,7 +906,7 @@
             const record = {
                 id: rawRecord.id || null,
                 recordType: mode,
-                discovery: (rawRecord.discovery || '').trim() || (mode === FUNDING_MODE ? 'Curated' : 'Deep Scan'),
+                discovery: (rawRecord.discovery || '').trim() || 'Pipeline',
                 name: (rawRecord.name || '').trim(),
                 country: (rawRecord.country || DEFAULT_COUNTRY).trim(),
                 category: (rawRecord.category || config.categoryOptions[0]).trim(),
@@ -1125,7 +916,7 @@
                 contacts: (rawRecord.contacts || '').trim()
             };
             const categoryKey = normalizeText(record.category);
-            const synonyms = (CATEGORY_SYNONYMS_BY_MODE[mode] || {})[categoryKey] || [];
+            const synonyms = (CATEGORY_SYNONYMS || {})[categoryKey] || [];
             const intentTerms = config.intentTerms || [];
             const searchSource = [
                 record.name,
@@ -1155,19 +946,8 @@
             return record;
         };
 
-        const stripMeta = (record) => {
-            const { meta, id, ...rest } = record;
-            return rest;
-        };
-
         const getRecordSearchId = (record) => (
             record.id || record.meta?.searchId || record.meta?.navId || buildNavboostRecordKey(record)
-        );
-
-        const buildIndexSignature = (dataset) => JSON.stringify(
-            dataset
-                .map(record => [getRecordSearchId(record), record.meta?.tokens || []])
-                .sort((a, b) => a[0].localeCompare(b[0]))
         );
 
         const buildInvertedIndex = (dataset) => {
@@ -1228,176 +1008,17 @@
             return { vectors, norms };
         };
 
-        const serializeIndex = (indexMap) => {
-            const payload = {};
-            indexMap.forEach((entry, term) => {
-                payload[term] = {
-                    df: entry.df,
-                    idf: entry.idf,
-                    postings: Object.fromEntries(entry.postings)
-                };
-            });
-            return payload;
-        };
-
-        const deserializeIndex = (payload) => {
-            const indexMap = new Map();
-            if (!payload) return indexMap;
-            Object.entries(payload).forEach(([term, entry]) => {
-                const postings = new Map();
-                Object.entries(entry.postings || {}).forEach(([docId, positions]) => {
-                    postings.set(docId, positions || []);
-                });
-                indexMap.set(term, {
-                    df: entry.df || postings.size,
-                    idf: entry.idf || 0,
-                    postings
-                });
-            });
-            return indexMap;
-        };
-
         const buildSearchIndexPayload = (dataset) => {
             const inverted = buildInvertedIndex(dataset);
             const vectorIndex = buildVectorIndex(dataset, inverted.index);
             return {
-                version: SEARCH_INDEX_VERSION,
                 generatedAt: new Date().toISOString(),
-                signature: buildIndexSignature(dataset),
                 docCount: inverted.docCount,
                 avgDocLength: inverted.avgDocLength,
                 docLengths: inverted.docLengths,
                 index: inverted.index,
                 vectorIndex
             };
-        };
-
-        const serializeSearchIndex = (payload) => ({
-            version: payload.version,
-            generatedAt: payload.generatedAt,
-            signature: payload.signature,
-            docCount: payload.docCount,
-            avgDocLength: payload.avgDocLength,
-            docLengths: payload.docLengths,
-            index: serializeIndex(payload.index),
-            vectorIndex: {
-                vectors: payload.vectorIndex?.vectors || {},
-                norms: payload.vectorIndex?.norms || {}
-            }
-        });
-
-        const deserializeSearchIndex = (payload) => {
-            const indexMap = deserializeIndex(payload.index);
-            return {
-                version: payload.version,
-                generatedAt: payload.generatedAt,
-                signature: payload.signature,
-                docCount: payload.docCount || 0,
-                avgDocLength: payload.avgDocLength || 0,
-                docLengths: payload.docLengths || {},
-                index: indexMap,
-                vectorIndex: {
-                    vectors: payload.vectorIndex?.vectors || {},
-                    norms: payload.vectorIndex?.norms || {}
-                }
-            };
-        };
-
-        const loadSearchIndex = async (mode, dataset) => {
-            if (!firebaseReady) {
-                return null;
-            }
-            try {
-                const docRef = firestoreSdk.doc(db, FIREBASE_COLLECTIONS.searchIndex, mode);
-                const snapshot = await firestoreSdk.getDoc(docRef);
-                if (!snapshot.exists()) {
-                    return null;
-                }
-                const data = snapshot.data();
-                const signature = buildIndexSignature(dataset);
-                if (data.version !== SEARCH_INDEX_VERSION) {
-                    console.warn('Search index version mismatch, rebuilding.');
-                    return null;
-                }
-                if (data.docCount !== dataset.length) {
-                    console.warn('Search index document count mismatch, rebuilding.');
-                    return null;
-                }
-                if (data.signature !== signature) {
-                    console.warn('Search index signature mismatch, rebuilding.');
-                    return null;
-                }
-                return deserializeSearchIndex(data);
-            } catch (error) {
-                console.error('Search index load failed', error);
-                return null;
-            }
-        };
-
-        const saveSearchIndex = async (mode, payload) => {
-            if (!firebaseReady) {
-                return;
-            }
-            try {
-                const docRef = firestoreSdk.doc(db, FIREBASE_COLLECTIONS.searchIndex, mode);
-                await firestoreSdk.setDoc(docRef, serializeSearchIndex(payload), { merge: true });
-            } catch (error) {
-                console.error('Search index save failed', error);
-            }
-        };
-
-        const refreshSearchIndex = async (mode, forceRebuild = false) => {
-            const dataset = mode === FUNDING_MODE ? funders : financingNeeds;
-            if (!dataset.length) {
-                searchIndexCache[mode] = null;
-                return;
-            }
-            if (!forceRebuild) {
-                const cached = await loadSearchIndex(mode, dataset);
-                if (cached) {
-                    searchIndexCache[mode] = cached;
-                    return;
-                }
-            }
-            const payload = buildSearchIndexPayload(dataset);
-            searchIndexCache[mode] = payload;
-            await saveSearchIndex(mode, payload);
-        };
-
-        const sanitizeWebsite = (website) => {
-            if (!website) return '';
-            try {
-                const url = new URL(website.trim());
-                return (url.protocol === 'http:' || url.protocol === 'https:') ? url.toString() : '';
-            } catch (error) {
-                return '';
-            }
-        };
-
-        const sanitizeEmailValue = (value) => (value || '')
-            .toString()
-            .replace(/[\r\n]+/g, ' ')
-            .trim();
-
-        const applyOptionEdit = (value, options, fallback, label) => {
-            if (value === null) {
-                return fallback;
-            }
-            const normalized = normalizeText(value);
-            const match = options.find(option => normalizeText(option) === normalized);
-            if (!match) {
-                alert(`"${value}" is not a valid ${label}. Keeping "${fallback}".`);
-                return fallback;
-            }
-            return match;
-        };
-
-        const populateSelect = (selectId, options, defaultValue) => {
-            const select = document.getElementById(selectId);
-            select.innerHTML = options.map(option => `<option value="${escapeHtml(option)}">${escapeHtml(option)}</option>`).join('');
-            if (defaultValue) {
-                select.value = defaultValue;
-            }
         };
 
         const populateFilterSelect = (selectEl, options, defaultValue = 'all') => {
@@ -1427,38 +1048,28 @@
 
         const updateModeUI = () => {
             const config = getModeConfig(activeMode);
-            const needsModeConfig = getModeConfig(NEEDS_MODE);
-            const fundingModeConfig = getModeConfig(FUNDING_MODE);
-            if (filterState.category !== 'all' && !needsModeConfig.categoryOptions.includes(filterState.category)) {
+            if (filterState.category !== 'all' && !config.categoryOptions.includes(filterState.category)) {
                 filterState.category = 'all';
             }
-            if (filterState.type !== 'all' && !fundingModeConfig.typeOptions.includes(filterState.type)) {
+            if (filterState.type !== 'all' && !config.typeOptions.includes(filterState.type)) {
                 filterState.type = 'all';
             }
-            formTitleEl.textContent = `Add / Manage ${config.label}`;
-            formHelpEl.textContent = config.formHelp;
             resultsTitleEl.textContent = config.resultsLabel;
-            targetInputEl.placeholder = config.targetPlaceholder;
-            addRecordButton.textContent = UI_COPY.addRecordButton;
-            populateSelect('newCategory', config.categoryOptions, config.categoryOptions[0]);
-            populateSelect('newType', config.typeOptions, config.typeOptions[0]);
-            populateFilterSelect(categoryFilterEl, needsModeConfig.categoryOptions, filterState.category);
-            populateFilterSelect(typeFilterEl, fundingModeConfig.typeOptions, filterState.type);
+            populateFilterSelect(categoryFilterEl, config.categoryOptions, filterState.category);
+            populateFilterSelect(typeFilterEl, config.typeOptions, filterState.type);
         };
 
         const updateEngineMetrics = (
-            needsVisibleCount,
-            needsDataset,
-            matchCount,
+            visibleCount,
+            dataset,
             metricsMode = activeMode
         ) => {
-            const countries = new Set(needsDataset.map(record => record.country));
-            const categories = new Set(needsDataset.map(record => record.category));
-            const scanStamp = scanMeta?.[metricsMode]?.lastScan;
-            const scanLabel = scanStamp ? new Date(scanStamp).toLocaleString() : 'Not run yet';
+            const contexts = new Set(dataset.map(record => record.country));
+            const stages = new Set(dataset.map(record => record.category));
+            const systems = new Set(dataset.map(record => record.type));
+            const refreshLabel = lastSearchAt ? new Date(lastSearchAt).toLocaleString() : 'Awaiting search';
             const navboostContext = buildNavboostContext(searchInput.value, metricsMode);
-            const navboostDataset = getDatasetForMode(metricsMode);
-            const navboostSnapshot = buildNavboostSummary(navboostContext, navboostDataset);
+            const navboostSnapshot = buildNavboostSummary(navboostContext, dataset);
             const navboostLabel = navboostSnapshot.totalClicks
                 ? `${navboostSnapshot.goodClicks} good / ${navboostSnapshot.badClicks} bad`
                 : 'Awaiting signals';
@@ -1467,24 +1078,24 @@
                 : 'No long-click leader yet';
             engineMetricsEl.innerHTML = `
                 <div class="metric-card">
-                    <span>Financing needs</span>
-                    <strong>${needsVisibleCount} / ${needsDataset.length}</strong>
+                    <span>Pipeline insights</span>
+                    <strong>${visibleCount} / ${dataset.length}</strong>
                 </div>
                 <div class="metric-card">
-                    <span>Funding matches</span>
-                    <strong>${matchCount} / ${getFundingDataset().length}</strong>
+                    <span>Context coverage</span>
+                    <strong>${contexts.size} contexts</strong>
                 </div>
                 <div class="metric-card">
-                    <span>Country coverage</span>
-                    <strong>${countries.size} regions</strong>
+                    <span>Stage depth</span>
+                    <strong>${stages.size} stages</strong>
                 </div>
                 <div class="metric-card">
-                    <span>Sector depth</span>
-                    <strong>${categories.size} sectors</strong>
+                    <span>Signal systems</span>
+                    <strong>${systems.size} systems</strong>
                 </div>
                 <div class="metric-card">
-                    <span>Deep scan</span>
-                    <strong>${scanLabel}</strong>
+                    <span>Index freshness</span>
+                    <strong>${refreshLabel}</strong>
                 </div>
                 <div class="metric-card">
                     <span>Navboost signals (${NAVBOOST_SIGNAL_WINDOW_MONTHS} months)</span>
@@ -1544,279 +1155,73 @@
             }
         };
 
-        const seedFirestoreCollection = async (mode, dataset) => {
-            const collectionName = mode === FUNDING_MODE ? FIREBASE_COLLECTIONS.funders : FIREBASE_COLLECTIONS.contracts;
-            const collectionRef = firestoreSdk.collection(db, collectionName);
-            const seeded = [];
-            let pending = [];
-            let batch = firestoreSdk.writeBatch(db);
-            let batchCount = 0;
-            for (const entry of dataset) {
-                const prepared = prepareRecord(entry, mode);
-                const docRef = firestoreSdk.doc(collectionRef);
-                batch.set(docRef, { ...stripMeta(prepared), lastUpdated: firestoreSdk.serverTimestamp() });
-                pending.push({ prepared, docId: docRef.id });
-                batchCount += 1;
-                if (batchCount === FIRESTORE_BATCH_SIZE) {
-                    await batch.commit();
-                    pending.forEach(({ prepared: record, docId }) => {
-                        record.id = docId;
-                        record.meta.searchId = docId;
-                        seeded.push(record);
-                    });
-                    batch = firestoreSdk.writeBatch(db);
-                    pending = [];
-                    batchCount = 0;
-                }
-            }
-            if (batchCount > 0) {
-                await batch.commit();
-                pending.forEach(({ prepared: record, docId }) => {
-                    record.id = docId;
-                    record.meta.searchId = docId;
-                    seeded.push(record);
-                });
-            }
-            return seeded;
-        };
-
-        const replaceFirestoreCollection = async (mode, dataset) => {
-            if (!firebaseReady) {
-                return null;
-            }
-            const collectionName = mode === FUNDING_MODE ? FIREBASE_COLLECTIONS.funders : FIREBASE_COLLECTIONS.contracts;
-            const collectionRef = firestoreSdk.collection(db, collectionName);
-            const snapshot = await firestoreSdk.getDocs(collectionRef);
-            if (!snapshot.empty) {
-                let batch = firestoreSdk.writeBatch(db);
-                let batchCount = 0;
-                for (const docSnap of snapshot.docs) {
-                    batch.delete(docSnap.ref);
-                    batchCount += 1;
-                    if (batchCount === FIRESTORE_BATCH_SIZE) {
-                        await batch.commit();
-                        batch = firestoreSdk.writeBatch(db);
-                        batchCount = 0;
-                    }
-                }
-                if (batchCount > 0) {
-                    await batch.commit();
-                }
-            }
-            return seedFirestoreCollection(mode, dataset);
-        };
-
-        const loadFunders = async () => {
-            if (firebaseReady) {
-                try {
-                    const snapshot = await firestoreSdk.getDocs(firestoreSdk.collection(db, FIREBASE_COLLECTIONS.funders));
-                    if (snapshot.empty) {
-                        funders = await seedFirestoreCollection('funders', initialData);
-                    } else {
-                        funders = snapshot.docs.map(docSnap => prepareRecord({ id: docSnap.id, ...docSnap.data() }, 'funders'));
-                    }
-                } catch (error) {
-                    console.error('Firebase load failed', error);
-                    updateStatus('Firebase sync failed. Data will be held in-memory until Firebase recovers.', 'error');
-                    firebaseReady = false;
-                }
-            }
-            if (!firebaseReady) {
-                funders = initialData.map(entry => prepareRecord(entry, 'funders'));
-            }
-            ensureScanMetaEntry('funders');
-            await refreshSearchIndex('funders');
-        };
-
-        const loadContractLeads = async () => {
-            if (firebaseReady) {
-                try {
-                    const snapshot = await firestoreSdk.getDocs(firestoreSdk.collection(db, FIREBASE_COLLECTIONS.contracts));
-                    if (snapshot.empty) {
-                        financingNeeds = await seedFirestoreCollection('contracts', initialContractData);
-                    } else {
-                        financingNeeds = snapshot.docs.map(docSnap => prepareRecord({ id: docSnap.id, ...docSnap.data() }, 'contracts'));
-                    }
-                } catch (error) {
-                    console.error('Firebase load failed', error);
-                    updateStatus('Firebase sync failed. Data will be held in-memory until Firebase recovers.', 'error');
-                    firebaseReady = false;
-                }
-            }
-            if (!firebaseReady) {
-                financingNeeds = initialContractData.map(entry => prepareRecord(entry, 'contracts'));
-            }
-            ensureScanMetaEntry('contracts');
-            await refreshSearchIndex('contracts');
-        };
-
-        const persistRecord = async (record) => {
-            const mode = record.recordType || activeMode;
-            if (!firebaseReady) {
-                await refreshSearchIndex(mode, true);
-                return;
-            }
-            const collectionName = mode === FUNDING_MODE ? FIREBASE_COLLECTIONS.funders : FIREBASE_COLLECTIONS.contracts;
-            try {
-                if (record.id) {
-                    await firestoreSdk.updateDoc(
-                        firestoreSdk.doc(db, collectionName, record.id),
-                        { ...stripMeta(record), lastUpdated: firestoreSdk.serverTimestamp() }
-                    );
-                } else {
-                    const docRef = await firestoreSdk.addDoc(
-                        firestoreSdk.collection(db, collectionName),
-                        { ...stripMeta(record), lastUpdated: firestoreSdk.serverTimestamp() }
-                    );
-                    record.id = docRef.id;
-                    record.meta.searchId = docRef.id;
-                }
-            } catch (error) {
-                console.error('Firebase save failed', error);
-                updateStatus('Firebase sync failed while saving. Data is temporarily held in-memory.', 'error');
-            }
-            await refreshSearchIndex(mode, true);
-        };
-
-        const removeRecord = async (record) => {
-            const mode = record.recordType || activeMode;
-            if (!firebaseReady || !record.id) {
-                await refreshSearchIndex(mode, true);
-                return;
-            }
-            const collectionName = mode === FUNDING_MODE ? FIREBASE_COLLECTIONS.funders : FIREBASE_COLLECTIONS.contracts;
-            try {
-                await firestoreSdk.deleteDoc(firestoreSdk.doc(db, collectionName, record.id));
-            } catch (error) {
-                console.error('Firebase delete failed', error);
-                updateStatus('Firebase sync failed while deleting. Data is temporarily held in-memory.', 'error');
-            }
-            await refreshSearchIndex(mode, true);
-        };
 
         const formatMatchStrength = (score) => {
             if (!Number.isFinite(score)) {
-                return 'Match';
+                return 'No Score';
             }
             if (score >= 12) {
-                return 'Strong Match';
+                return 'Strong Signal';
             }
             if (score >= 6) {
-                return 'Good Match';
+                return 'Relevant Signal';
             }
-            return 'Potential Match';
+            return 'Emerging Signal';
         };
 
-        const renderRecordCard = (record, mode, badgeText) => {
-            const dataset = getDatasetForMode(mode);
-            const datasetIndex = dataset.indexOf(record);
-            const config = getModeConfig(mode);
-            const website = sanitizeWebsite(record.website);
-            const safeWebsite = website
-                ? `<a href="${website}" target="_blank" rel="noopener noreferrer" data-mode="${mode}" data-index="${datasetIndex}">${escapeHtml(website)}</a>`
-                : 'N/A';
-            const actions = datasetIndex >= 0
-                ? `
-                    <button class="edit-btn" data-action="edit" data-mode="${mode}" data-index="${datasetIndex}">Edit</button>
-                    <button class="delete-btn" data-action="delete" data-mode="${mode}" data-index="${datasetIndex}">Delete</button>
-                    <button class="email-btn" data-action="email" data-mode="${mode}" data-index="${datasetIndex}">Email</button>
-                `
-                : '';
+        const renderRecordCard = (record, badgeText) => {
+            const config = getModeConfig(record.recordType || activeMode);
+            const datasetIndex = getActiveDataset().indexOf(record);
             return `
-                <div class="match-card">
+                <div class="match-card" data-index="${datasetIndex}">
                     <div class="match-card-header">
                         <div class="match-card-title">${escapeHtml(record.name)}</div>
                         <span class="match-badge">${escapeHtml(badgeText)}</span>
                     </div>
-                    <div class="match-meta"><strong>Country:</strong> ${escapeHtml(record.country)}</div>
-                    <div class="match-meta"><strong>Sector:</strong> ${escapeHtml(record.category)}</div>
+                    <div class="match-meta"><strong>${escapeHtml(config.contextLabel)}:</strong> ${escapeHtml(record.country)}</div>
+                    <div class="match-meta"><strong>${escapeHtml(config.categoryLabel)}:</strong> ${escapeHtml(record.category)}</div>
                     <div class="match-meta"><strong>${escapeHtml(config.typeLabel)}:</strong> ${escapeHtml(record.type)}</div>
                     <div class="match-meta"><strong>${escapeHtml(config.targetLabel)}:</strong> ${escapeHtml(record.target || 'N/A')}</div>
-                    <div class="match-meta"><strong>Website:</strong> ${safeWebsite}</div>
-                    <div class="match-meta"><strong>Contacts:</strong> ${escapeHtml(record.contacts || 'N/A')}</div>
-                    <div class="match-actions">${actions}</div>
                 </div>
             `;
         };
 
-        const renderMatchTable = (matches) => {
+        const renderMatchTable = (results) => {
             tableBody.innerHTML = '';
-            if (!matches.length) {
+            if (!results.length) {
                 tableBody.innerHTML = `
                     <tr>
                         <td class="match-cell">
                             <div class="match-card">
-                                <div class="match-empty">No financing needs match the current filters.</div>
-                            </div>
-                        </td>
-                        <td class="match-cell">
-                            <div class="match-card">
-                                <div class="match-empty">Adjust filters or refine the prompt to surface funding matches.</div>
+                                <div class="match-empty">No pipeline stages match the current filters.</div>
                             </div>
                         </td>
                     </tr>
                 `;
                 return;
             }
-            matches.forEach(({ need, match }) => {
+            results.forEach(({ record, score }) => {
                 const row = document.createElement('tr');
-                const matchMarkup = match
-                    ? renderRecordCard(match.record, FUNDING_MODE, formatMatchStrength(match.score))
-                    : `
-                        <div class="match-card">
-                            <div class="match-empty">No matching funding sources found yet.</div>
-                        </div>
-                    `;
                 row.innerHTML = `
-                    <td class="match-cell">${renderRecordCard(need, NEEDS_MODE, 'Need')}</td>
-                    <td class="match-cell">${matchMarkup}</td>
+                    <td class="match-cell">${renderRecordCard(record, formatMatchStrength(score))}</td>
                 `;
                 tableBody.appendChild(row);
             });
         };
 
-        const handleTableAction = (event) => {
-            const link = event.target.closest('a');
-            if (link && link.href) {
-                const indexValue = link.dataset.index;
-                if (!link.dataset.mode || !/^\d+$/.test(indexValue || '')) {
-                    return;
-                }
-                const datasetIndex = Number.parseInt(indexValue, 10);
-                const mode = link.dataset.mode;
-                const dataset = getDatasetForMode(mode);
-                if (datasetIndex < 0 || datasetIndex >= dataset.length) {
-                    return;
-                }
-                const record = dataset[datasetIndex];
-                if (record) {
-                    registerNavboostClick(record, 'website');
-                }
-            }
-            const button = event.target.closest('button[data-action]');
-            if (!button) {
+        const handleCardClick = (event) => {
+            const card = event.target.closest('.match-card[data-index]');
+            if (!card) {
                 return;
             }
-            const indexValue = button.dataset.index;
-            if (!button.dataset.mode || !/^\d+$/.test(indexValue || '')) {
+            const indexValue = card.dataset.index;
+            if (!/^\d+$/.test(indexValue || '')) {
                 return;
             }
             const index = Number.parseInt(indexValue, 10);
-            const mode = button.dataset.mode;
-            const dataset = getDatasetForMode(mode);
-            const record = dataset[index];
-            if (!record) {
-                return;
-            }
-            const action = button.dataset.action;
-            if (action === 'edit') {
-                editRecord(index, mode);
-            } else if (action === 'delete') {
-                deleteRecord(index, mode);
-            } else if (action === 'email') {
-                const website = sanitizeWebsite(record.website);
-                registerNavboostClick(record, 'email', NAVBOOST_NEUTRAL_DWELL_MS);
-                sendEmail(record, website);
+            const record = getActiveDataset()[index];
+            if (record) {
+                registerNavboostClick(record, 'insight');
             }
         };
 
@@ -1935,49 +1340,9 @@
             return terms.every(term => tokenSet.has(term));
         };
 
-        const buildMatchContextFromRecord = (record, mode) => {
-            const composite = [record.name, record.category, record.type, record.target]
-                .filter(Boolean)
-                .join(' ');
-            const terms = tokenize(composite);
-            return {
-                terms,
-                queryKey: buildQueryKey(terms),
-                clusterKey: buildQueryClusterKey(terms),
-                device: getDeviceContext(),
-                region: record.country || getRegionContext(),
-                mode
-            };
-        };
-
-        // Heuristic boost prioritizes same-country (+2.5) and same-category (+2) alignment; keyword overlap adds up to +3.
-        const computeNeedMatchBoost = (need, funder) => {
-            let score = 0;
-            if (need.country && funder.country === need.country) {
-                score += NEED_MATCH_COUNTRY_WEIGHT;
-            }
-            if (need.category && funder.category === need.category) {
-                score += NEED_MATCH_CATEGORY_WEIGHT;
-            }
-            const needTokens = need.meta?.tokenSet;
-            const funderTokens = funder.meta?.tokenSet;
-            if (needTokens && funderTokens) {
-                let overlap = 0;
-                needTokens.forEach(token => {
-                    if (funderTokens.has(token)) {
-                        overlap += 1;
-                    }
-                });
-                score += Math.min(overlap * TOKEN_OVERLAP_WEIGHT, MAX_TOKEN_OVERLAP_SCORE);
-            }
-            return score;
-        };
-
-        const executeSearch = (query, mode, filterOptions) => {
-            const queryContext = buildNavboostContext(query, mode);
+        const executeSearch = (query, dataset, indexPayload, filterOptions) => {
+            const queryContext = buildNavboostContext(query, SEARCH_MODE);
             const { terms } = queryContext;
-            const dataset = getDatasetForMode(mode);
-            const indexPayload = searchIndexCache[mode];
             const indexMap = indexPayload?.index || new Map();
             const candidates = terms.length && indexPayload ? collectCandidateDocIds(terms, indexMap) : null;
             const queryVector = terms.length && indexPayload ? buildQueryVector(terms, indexMap) : null;
@@ -1991,7 +1356,7 @@
                 }
                 return matchesQueryTerms(record, terms);
             });
-            const ranked = terms.length
+            const results = terms.length
                 ? filtered
                     .map(record => ({
                         record,
@@ -2000,161 +1365,25 @@
                             : 1
                     }))
                     .sort((a, b) => b.score - a.score)
-                    .map(entry => entry.record)
-                : filtered;
-            return { queryContext, ranked, dataset };
-        };
-
-        const findBestFundingMatch = (need, fundingCandidates, fundingIndexPayload) => {
-            if (!fundingCandidates.length) {
-                return null;
-            }
-            const matchContext = buildMatchContextFromRecord(need, FUNDING_MODE);
-            const { terms } = matchContext;
-            const indexMap = fundingIndexPayload?.index || new Map();
-            const candidates = terms.length && fundingIndexPayload ? collectCandidateDocIds(terms, indexMap) : null;
-            const queryVector = terms.length && fundingIndexPayload ? buildQueryVector(terms, indexMap) : null;
-            let bestMatch = null;
-            fundingCandidates.forEach(record => {
-                if (terms.length && fundingIndexPayload && candidates) {
-                    const docId = getRecordSearchId(record);
-                    if (!candidates.has(docId)) {
-                        return;
-                    }
-                }
-                const baseScore = terms.length && fundingIndexPayload
-                    ? scoreRecord(record, matchContext, fundingIndexPayload, queryVector)
-                    : 1;
-                const boostedScore = baseScore + computeNeedMatchBoost(need, record);
-                if (!bestMatch || boostedScore > bestMatch.score) {
-                    bestMatch = { record, score: boostedScore };
-                }
-            });
-            return bestMatch;
+                : filtered.map(record => ({ record, score: 1 }));
+            return { queryContext, results };
         };
 
         const applySearch = (query) => {
-            // categoryFilter refines needs while typeFilter refines funding sources for cross-stream alignment.
-            const needsSearch = executeSearch(query, NEEDS_MODE, { applyCategory: true, applyType: false });
-            const fundingCandidates = getFundingDataset().filter(record => (
-                matchesFilters(record, { applyCategory: false, applyType: true })
-            ));
-            const fundingIndexPayload = searchIndexCache[FUNDING_MODE];
-            const matches = needsSearch.ranked.map(need => ({
-                need,
-                match: findBestFundingMatch(need, fundingCandidates, fundingIndexPayload)
-            }));
-            renderMatchTable(matches);
-            const matchCount = matches.filter(entry => entry.match).length;
-            updateEngineMetrics(matches.length, needsSearch.dataset, matchCount);
+            const dataset = getActiveDataset();
+            const indexPayload = dataset.length ? buildSearchIndexPayload(dataset) : null;
+            const searchResults = executeSearch(query, dataset, indexPayload, { applyCategory: true, applyType: true });
+            markSearchRefresh();
+            renderMatchTable(searchResults.results);
+            updateEngineMetrics(searchResults.results.length, dataset);
             scheduleSearchStateSave();
         };
 
-        const clearInputs = () => {
-            const config = getModeConfig(activeMode);
-            document.getElementById('newName').value = '';
-            document.getElementById('newTarget').value = '';
-            document.getElementById('newWebsite').value = '';
-            document.getElementById('newContacts').value = '';
-            document.getElementById('newCountry').value = DEFAULT_COUNTRY;
-            document.getElementById('newCategory').value = config.categoryOptions[0];
-            document.getElementById('newType').value = config.typeOptions[0];
-        };
-
-        const addRecord = async () => {
-            const config = getModeConfig(activeMode);
-            const name = document.getElementById('newName').value.trim();
-            const country = document.getElementById('newCountry').value.trim();
-            const category = document.getElementById('newCategory').value.trim();
-            const type = document.getElementById('newType').value.trim();
-            const target = document.getElementById('newTarget').value.trim();
-            const website = document.getElementById('newWebsite').value.trim();
-            const contacts = document.getElementById('newContacts').value.trim();
-            if (!name || !target) {
-                alert(`Name and ${config.targetLabel} are required.`);
-                return;
-            }
-            const record = prepareRecord({ name, country, category, type, target, website, contacts, recordType: activeMode }, activeMode);
-            const dataset = getActiveDataset();
-            dataset.push(record);
-            await persistRecord(record);
-            applySearch(searchInput.value);
-            clearInputs();
-        };
-
-        const editRecord = async (index, mode = activeMode) => {
-            const dataset = getDatasetForMode(mode);
-            const record = dataset[index];
-            const config = getModeConfig(mode);
-            const newName = prompt('Edit Name:', record.name);
-            const newCountry = prompt('Edit Country:', record.country);
-            const newCategory = prompt('Edit Category:', record.category);
-            const newType = prompt(`Edit ${config.typeLabel}:`, record.type);
-            const newTarget = prompt(`Edit ${config.targetLabel}:`, record.target);
-            const newWebsite = prompt('Edit Website:', record.website);
-            const newContacts = prompt('Edit Contacts:', record.contacts);
-            if (newName !== null) record.name = newName.trim();
-            record.country = applyOptionEdit(newCountry, COUNTRY_OPTIONS, record.country, 'country');
-            record.category = applyOptionEdit(newCategory, config.categoryOptions, record.category, 'category');
-            record.type = applyOptionEdit(newType, config.typeOptions, record.type, config.typeLabel);
-            if (newTarget !== null) record.target = newTarget.trim();
-            if (newWebsite !== null) record.website = newWebsite.trim();
-            if (newContacts !== null) record.contacts = newContacts.trim();
-            dataset[index] = prepareRecord(record, mode);
-            await persistRecord(dataset[index]);
-            applySearch(searchInput.value);
-        };
-
-        const deleteRecord = async (index, mode = activeMode) => {
-            if (!confirm('Delete this record?')) {
-                return;
-            }
-            const dataset = getDatasetForMode(mode);
-            const [removed] = dataset.splice(index, 1);
-            await removeRecord(removed);
-            applySearch(searchInput.value);
-        };
-
-        const sendEmail = (record, website) => {
-            const config = getModeConfig(record.recordType || activeMode);
-            const safeCountry = sanitizeEmailValue(record.country) || 'your region';
-            const safeCategory = sanitizeEmailValue(record.category) || 'your focus area';
-            const safeName = sanitizeEmailValue(record.name) || 'team';
-            const contactText = sanitizeEmailValue(record.contacts);
-            const safeWebsite = sanitizeEmailValue(website) || 'N/A';
-            const safeContacts = contactText || 'N/A';
-            const emailAddr = contactText && contactText.includes('@')
-                ? contactText.split(/[,; ]+/).find(c => c.includes('@')) || ''
-                : '';
-            const subject = encodeURIComponent(`${config.emailSubject} for ${safeCategory} in ${safeCountry}`);
-            const body = encodeURIComponent(
-                `Dear ${safeName} Team,\n\n` +
-                `${config.emailIntro}\n` +
-                `Our focus is ${safeCategory.toLowerCase()} in ${safeCountry}.\n\n` +
-                `Relevant details:\n` +
-                `Website: ${safeWebsite}\n` +
-                `Contacts: ${safeContacts}\n` +
-                `Current need: ${sanitizeEmailValue(record.target) || 'N/A'}\n\n` +
-                `Could you please share information on your current priorities or the next steps to align?\n\n` +
-                `Thank you for your time and consideration.\n` +
-                `Best regards,\nGoodness\n[Your phone/email/organisation]`
-            );
-            window.location.href = `mailto:${emailAddr}?subject=${subject}&body=${body}`;
-        };
-
-        const runDeepScan = async () => {
-            const dataset = activeMode === FUNDING_MODE ? buildFundingDataset() : buildContractDataset();
-            let prepared = dataset.map(entry => prepareRecord(entry, activeMode));
-            if (firebaseReady) {
-                const synced = await replaceFirestoreCollection(activeMode, dataset);
-                if (synced) {
-                    prepared = synced;
-                }
-                updateStatus('Deep scan completed. Firestore updated with fresh intelligence.', 'ready');
-            }
-            setDatasetForMode(activeMode, prepared);
-            markDeepScan(activeMode);
-            await refreshSearchIndex(activeMode, true);
+        const refreshSearchPipeline = () => {
+            const dataset = buildSearchPipelineDataset().map(entry => prepareRecord(entry, activeMode));
+            setDataset(dataset);
+            markSearchRefresh();
+            updateStatus('Search pipeline refreshed with the latest guidance.', 'ready');
             applySearch(searchInput.value);
         };
 
@@ -2162,48 +1391,30 @@
             if (engineIntroEl) {
                 engineIntroEl.textContent = UI_COPY.engineIntro;
             }
-            const funderOption = searchModeSelect.querySelector('option[value="funders"]');
-            if (funderOption) {
-                funderOption.textContent = `${MODE_CONFIG.funders.label} (${FUNDERS_TARGET_TOTAL} records)`;
+            const searchOption = searchModeSelect.querySelector('option[value="search"]');
+            if (searchOption) {
+                searchOption.textContent = `${MODE_CONFIG[SEARCH_MODE].label} (${initialData.length} stages)`;
             }
-            const contractOption = searchModeSelect.querySelector('option[value="contracts"]');
-            if (contractOption) {
-                contractOption.textContent = `${MODE_CONFIG.contracts.label} (${OPPORTUNITY_TARGET_TOTAL} records)`;
-            }
-            populateSelect('newCountry', COUNTRY_OPTIONS, DEFAULT_COUNTRY);
             renderCountryFilters();
             await initFirebaseSdk();
             setupFirebase();
-            scanMeta = await loadScanMeta();
             await initNavboostSignals();
             if (document.visibilityState === 'visible') {
                 finalizeNavboostPending();
             }
             const savedState = await loadSearchState();
-            if (savedState.mode && MODE_CONFIG[savedState.mode]) {
-                activeMode = savedState.mode;
-            }
             if (savedState.filters) {
                 filterState.countries = new Set(savedState.filters.countries || COUNTRY_OPTIONS);
                 filterState.category = savedState.filters.category || 'all';
                 filterState.type = savedState.filters.type || 'all';
             }
             syncCountryFilterUI();
-            searchModeSelect.value = activeMode;
+            searchModeSelect.value = SEARCH_MODE;
             updateModeUI();
             searchInput.value = savedState.query || '';
-            await loadFunders();
-            await loadContractLeads();
+            setDataset(buildSearchPipelineDataset().map(entry => prepareRecord(entry, activeMode)));
             applySearch(searchInput.value);
-            tableBody.addEventListener('click', handleTableAction);
-            addRecordButton.addEventListener('click', async () => {
-                try {
-                    await addRecord();
-                } catch (error) {
-                    console.error('Failed to add record', error);
-                    alert('Unable to add the record right now. Please try again.');
-                }
-            });
+            tableBody.addEventListener('click', handleCardClick);
             searchInput.addEventListener('input', (e) => {
                 applySearch(e.target.value);
             });
@@ -2234,10 +1445,12 @@
                 applySearch(searchInput.value);
             });
             runDeepScanButton.addEventListener('click', () => {
-                runDeepScan().catch((error) => {
-                    console.error('Deep scan failed', error);
-                    updateStatus('Deep scan failed. Check Firebase connectivity.', 'error');
-                });
+                try {
+                    refreshSearchPipeline();
+                } catch (error) {
+                    console.error('Pipeline refresh failed', error);
+                    updateStatus('Pipeline refresh failed. Please try again.', 'error');
+                }
             });
             clearFiltersButton.addEventListener('click', () => {
                 resetFilters();
