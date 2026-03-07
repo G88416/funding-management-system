@@ -303,7 +303,6 @@
         let navboostPending = null;
         let navboostSaveTimer = null;
         let searchStateSaveTimer = null;
-        let cardClickBound = false;
 
         const STOP_WORDS = new Set([
             'a', 'about', 'above', 'after', 'again', 'against', 'all', 'am', 'an', 'and', 'any', 'are', 'as', 'at',
@@ -1112,10 +1111,7 @@
             syncCountryFilterUI();
             updateModeUI();
             applySearch(searchInput.value);
-            if (!cardClickBound) {
-                tableBody.addEventListener('click', handleCardClick);
-                cardClickBound = true;
-            }
+            tableBody.addEventListener('click', handleCardClick);
         };
 
         const initFirebaseSdk = async () => {
